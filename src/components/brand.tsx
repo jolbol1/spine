@@ -1,20 +1,46 @@
 import { cn } from "@/lib/utils"
 
-/** Letterboxd-style tri-color dot cluster — the app's signature mark. */
-export function TriDots({ className }: { className?: string }) {
+/**
+ * The Spine mark — three DVD cases on a shelf in the Letterboxd trio,
+ * the last one leaning. Same artwork as the favicon, sans tile.
+ */
+export function SpineMark({ className }: { className?: string }) {
   return (
-    <span className={cn("inline-flex items-center -space-x-1.5", className)}>
-      <span className="size-3.5 rounded-full bg-lb-orange" />
-      <span className="size-3.5 rounded-full bg-lb-green mix-blend-screen" />
-      <span className="size-3.5 rounded-full bg-lb-blue mix-blend-screen" />
-    </span>
+    <svg
+      viewBox="96 120 330 296"
+      aria-hidden="true"
+      className={cn("h-6 w-auto", className)}
+    >
+      <rect x="122" y="136" width="68" height="256" rx="15" fill="#ff8000" />
+      <rect x="206" y="136" width="68" height="256" rx="15" fill="#00e054" />
+      <g transform="rotate(-15 318 392)">
+        <rect
+          x="318"
+          y="136"
+          width="68"
+          height="256"
+          rx="15"
+          fill="#40bcf4"
+          style={{ mixBlendMode: "screen" }}
+        />
+      </g>
+      <rect
+        x="106"
+        y="398"
+        width="300"
+        height="12"
+        rx="6"
+        fill="currentColor"
+        opacity="0.25"
+      />
+    </svg>
   )
 }
 
 export function Brand({ className }: { className?: string }) {
   return (
     <span className={cn("flex items-center gap-2.5", className)}>
-      <TriDots />
+      <SpineMark />
       <span className="text-lg font-extrabold tracking-[0.18em] text-foreground">
         SPINE
       </span>
