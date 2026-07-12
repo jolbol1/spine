@@ -395,7 +395,11 @@ function computeStats(films: Film[]) {
     null
   )
 
-  const withRuntime = films.filter((f) => f.runtimeMinutes != null)
+  // TV sets store total series runtime, which would dwarf any feature —
+  // longest/shortest only compare films.
+  const withRuntime = films.filter(
+    (f) => f.runtimeMinutes != null && f.tmdbMediaType !== "tv",
+  )
   const longest = withRuntime.reduce<Film | null>(
     (best, f) =>
       best == null || f.runtimeMinutes! > best.runtimeMinutes! ? f : best,

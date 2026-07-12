@@ -4,22 +4,76 @@ import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import type { FilmFormValues } from "@/components/film-form"
+import {
+  blurayToValues,
+  cexIdFromUrl,
+  cexToValues,
+  scrapeToValues,
+} from "@/lib/import-mappers"
 import { searchBlurayFn, importBlurayUrlFn } from "@/server/bluray"
-import type { BlurayImport, BlurayResult } from "@/server/bluray"
+import type { BlurayResult } from "@/server/bluray"
+import { importCexFn } from "@/server/cex"
+import { scrapeWishlistUrlFn } from "@/server/wishlist"
 
 function looksLikeUrl(value: string): boolean {
   return /^https?:\/\//i.test(value.trim()) || value.includes("blu-ray.com/")
 }
 
 /**
+ * Import a product URL from whichever source it belongs to:
+ * Blu-ray.com pages get the full disc parser, CEX links use their box
+ * API, and any other supported retailer goes through the wishlist
+ * scraper (title/price/cover — TMDB fills the rest on add).
+ */
+async function importFromUrl(
+  raw: string,
+): Promise<
+  | { ok: true; values: FilmFormValues; source: string }
+  | { ok: false; error: string }
+> {
+  let url: URL
+  try {
+    url = new URL(raw)
+  } catch {
+    return { ok: false, error: "That's not a valid URL." }
+  }
+  const host = url.hostname.replace(/^www\./, "")
+
+  if (host.endsWith("blu-ray.com")) {
+    const result = await importBlurayUrlFn({ data: { url: raw } })
+    return result.success
+      ? { ok: true, values: blurayToValues(result.data), source: "Blu-ray.com" }
+      : { ok: false, error: result.error }
+  }
+
+  const cexId = cexIdFromUrl(url)
+  if (cexId) {
+    const result = await importCexFn({ data: { barcode: cexId } })
+    return result.success
+      ? { ok: true, values: cexToValues(result.data), source: "CEX" }
+      : { ok: false, error: result.error }
+  }
+
+  const result = await scrapeWishlistUrlFn({ data: { url: raw } })
+  return result.success
+    ? {
+        ok: true,
+        values: scrapeToValues(result.data),
+        source: result.data.retailer,
+      }
+    : { ok: false, error: result.error }
+}
+
+/**
  * One box, two behaviours: type a title to autocomplete against
- * Blu-ray.com, or paste a product link. Either way the pick is imported
- * with full disc metadata.
+ * Blu-ray.com, or paste a product link from Blu-ray.com, CEX, or any
+ * supported retailer (HMV, Zavvi, Arrow, Criterion, …).
  */
 export function BlurayImportBox({
   onImport,
 }: {
-  onImport: (data: BlurayImport) => void
+  onImport: (values: FilmFormValues) => void
 }) {
   const [value, setValue] = useState("")
   const [results, setResults] = useState<BlurayResult[]>([])
@@ -30,17 +84,19 @@ export function BlurayImportBox({
   const requestSeq = useRef(0)
 
   const importUrl = useMutation({
-    mutationFn: (url: string) => importBlurayUrlFn({ data: { url } }),
+    mutationFn: importFromUrl,
     onSuccess: (result) => {
-      if (!result.success) {
+      if (!result.ok) {
         toast.error(result.error)
         return
       }
       setOpen(false)
       setValue("")
       setResults([])
-      onImport(result.data)
-      toast.success(`Imported “${result.data.title}” from Blu-ray.com`)
+      onImport(result.values)
+      toast.success(
+        `Imported “${result.values.title}” from ${result.source}`,
+      )
     },
     onError: () => toast.error("Import failed"),
   })
@@ -103,7 +159,7 @@ export function BlurayImportBox({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onFocus={() => results.length > 0 && setOpen(true)}
-            placeholder="Search Blu-ray.com, or paste a product link…"
+            placeholder="Search Blu-ray.com, or paste a link (Blu-ray.com, CEX, HMV, Arrow…)"
             className="pl-8"
             aria-label="Search Blu-ray.com or paste a product link"
           />

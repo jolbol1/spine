@@ -11,10 +11,9 @@ import {
   valuesToInput,
 } from "@/components/film-form"
 import type { FilmFormValues } from "@/components/film-form"
+import { blurayToValues, cexToValues } from "@/lib/import-mappers"
 import { importBlurayUrlFn } from "@/server/bluray"
-import type { BlurayImport } from "@/server/bluray"
 import { importCexFn } from "@/server/cex"
-import type { CexImport } from "@/server/cex"
 import { createFilmFn } from "@/server/films"
 
 const searchSchema = z.object({
@@ -33,56 +32,6 @@ export const Route = createFileRoute("/_app/add")({
   component: AddFilmPage,
 })
 
-/** Map the free-text HDR line from Blu-ray.com onto the form's options. */
-function normalizeHdr(hdr: string | null): string {
-  if (!hdr) return ""
-  if (hdr.includes("Dolby Vision")) return "Dolby Vision"
-  if (hdr.includes("HDR10+")) return "HDR10+"
-  if (hdr.includes("HDR10")) return "HDR10"
-  return ""
-}
-
-/** CEX disc details → form values; catalogue extras land in the notes. */
-function cexToValues(data: CexImport): FilmFormValues {
-  const notes = [
-    data.bbfcRating && `BBFC: ${data.bbfcRating}`,
-    data.genres.length > 0 && `Genre: ${data.genres.join(", ")}`,
-    data.publisher && `Publisher: ${data.publisher}`,
-    data.supplier && `Supplier: ${data.supplier}`,
-  ]
-    .filter(Boolean)
-    .join("\n")
-  return {
-    ...emptyFilmValues,
-    title: data.title,
-    year: data.year?.toString() ?? "",
-    format: data.format,
-    label: data.label ?? "",
-    runtimeMinutes: data.runtimeMinutes?.toString() ?? "",
-    coverUrl: data.coverUrl ?? "",
-    barcode: data.barcode,
-    notes,
-  }
-}
-
-function importToValues(data: BlurayImport): FilmFormValues {
-  return {
-    ...emptyFilmValues,
-    title: data.title,
-    director: data.director ?? "",
-    year: data.year?.toString() ?? "",
-    format: data.format,
-    audio: data.audio ?? "",
-    hdr: normalizeHdr(data.hdr),
-    region: data.region?.split(",")[0]?.trim() ?? "",
-    label: data.label ?? "",
-    spineNumber: data.spineNumber?.toString() ?? "",
-    runtimeMinutes: data.runtimeMinutes?.toString() ?? "",
-    discCount: data.discCount.toString(),
-    coverUrl: data.coverUrl ?? "",
-  }
-}
-
 function AddFilmPage() {
   const prefill = Route.useSearch()
   const navigate = useNavigate()
@@ -100,10 +49,10 @@ function AddFilmPage() {
     onError: () => toast.error("Could not add the film — check the fields"),
   })
 
-  const applyImport = (data: BlurayImport) => {
+  const applyImport = (values: FilmFormValues) => {
     setImported({
-      ...importToValues(data),
-      barcode: prefill.barcode ?? "",
+      ...values,
+      barcode: values.barcode || prefill.barcode || "",
     })
     setFormKey((k) => k + 1)
   }
@@ -113,7 +62,7 @@ function AddFilmPage() {
     mutationFn: (url: string) => importBlurayUrlFn({ data: { url } }),
     onSuccess: (result) => {
       if (result.success) {
-        applyImport(result.data)
+        applyImport(blurayToValues(result.data))
       } else {
         toast.error(result.error)
       }

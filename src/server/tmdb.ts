@@ -132,6 +132,57 @@ export async function fetchTmdbCast(
   }
 }
 
+export interface TmdbTitleMatch {
+  tmdbId: number
+  mediaType: "movie" | "tv"
+  title: string
+  year: number | null
+  posterUrl: string | null
+}
+
+/** Straight TMDB title search — canonical matches for fuzzy web results. */
+export async function searchTmdbTitles(
+  query: string,
+  limit = 5,
+): Promise<TmdbTitleMatch[]> {
+  if (!env.TMDB_API_KEY) return []
+  try {
+    const res = await tmdbFetch("/search/multi", {
+      query,
+      include_adult: "false",
+    })
+    if (!res.ok) return []
+    const payload = (await res.json()) as {
+      results?: Array<{
+        id: number
+        media_type: string
+        title?: string
+        name?: string
+        release_date?: string
+        first_air_date?: string
+        poster_path?: string | null
+      }>
+    }
+    return (payload.results ?? [])
+      .filter((r) => r.media_type === "movie" || r.media_type === "tv")
+      .slice(0, limit)
+      .map((r) => {
+        const date = r.release_date ?? r.first_air_date
+        return {
+          tmdbId: r.id,
+          mediaType: r.media_type as "movie" | "tv",
+          title: r.title ?? r.name ?? "Unknown",
+          year: date ? Number(date.slice(0, 4)) || null : null,
+          posterUrl: r.poster_path
+            ? `https://image.tmdb.org/t/p/w342${r.poster_path}`
+            : null,
+        }
+      })
+  } catch {
+    return []
+  }
+}
+
 /**
  * Backfill cast for films that don't have it yet (e.g. added before TMDB
  * was configured). Sequential with a small delay to stay friendly to the API.

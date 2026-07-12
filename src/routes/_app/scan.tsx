@@ -12,6 +12,8 @@ import { searchBlurayFn } from "@/server/bluray"
 import type { BlurayResult } from "@/server/bluray"
 import { importCexFn } from "@/server/cex"
 import type { CexImport } from "@/server/cex"
+import { searchWebBarcodeFn } from "@/server/websearch"
+import type { TmdbTitleMatch } from "@/server/tmdb"
 
 export const Route = createFileRoute("/_app/scan")({
   component: ScanPage,
@@ -30,6 +32,23 @@ function ScanPage() {
   const [manual, setManual] = useState("")
   const [results, setResults] = useState<BlurayResult[] | null>(null)
   const [cexResult, setCexResult] = useState<CexImport | null>(null)
+  const [webMatches, setWebMatches] = useState<TmdbTitleMatch[] | null>(null)
+
+  // Last resort: web-search the barcode and canonicalise via TMDB.
+  const webLookup = useMutation({
+    mutationFn: (code: string) =>
+      searchWebBarcodeFn({ data: { barcode: code } }),
+    onSuccess: (result, code) => {
+      if (result.success && result.matches.length > 0) {
+        setWebMatches(result.matches)
+      } else {
+        toast.info(
+          `No match for ${code} anywhere — you can still add it manually.`,
+        )
+      }
+    },
+    onError: () => toast.error("Web search failed"),
+  })
 
   // Fallback for older/obscure discs Blu-ray.com doesn't list.
   const cexLookup = useMutation({
@@ -38,9 +57,8 @@ function ScanPage() {
       if (result.success) {
         setCexResult(result.data)
       } else {
-        toast.info(
-          `No match for ${code} on Blu-ray.com or CEX — you can still add it manually.`,
-        )
+        // Not on CEX either — cast the net wider.
+        webLookup.mutate(code)
       }
     },
     onError: () => toast.error("CEX lookup failed"),
@@ -70,6 +88,7 @@ function ScanPage() {
       setCameraState("idle")
       setBarcode(code)
       setCexResult(null)
+      setWebMatches(null)
       lookup.mutate(code)
     },
     [lookup, stopCamera]
@@ -79,6 +98,7 @@ function ScanPage() {
     setResults(null)
     setBarcode(null)
     setCexResult(null)
+    setWebMatches(null)
     setCameraState("starting")
 
     // zxing-wasm polyfill: works even where native BarcodeDetector is absent.
@@ -212,6 +232,7 @@ function ScanPage() {
               setBarcode(code)
               setResults(null)
               setCexResult(null)
+      setWebMatches(null)
               lookup.mutate(code)
             }}
           >
@@ -238,6 +259,7 @@ function ScanPage() {
           Barcode <span className="font-mono text-foreground">{barcode}</span>
           {lookup.isPending && " — searching Blu-ray.com…"}
           {cexLookup.isPending && " — not on Blu-ray.com, trying CEX…"}
+          {webLookup.isPending && " — not on CEX either, searching the web…"}
         </p>
       )}
 
@@ -316,11 +338,62 @@ function ScanPage() {
         </div>
       )}
 
+      {webMatches && webMatches.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+            Best matches from a web search
+          </h2>
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+            {webMatches.map((match) => (
+              <button
+                key={match.tmdbId}
+                type="button"
+                onClick={() =>
+                  navigate({
+                    to: "/add",
+                    search: {
+                      title: match.title,
+                      year: match.year?.toString(),
+                      coverUrl: match.posterUrl ?? undefined,
+                      barcode: barcode ?? undefined,
+                    },
+                  })
+                }
+                className="group rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <div className="relative aspect-2/3 overflow-hidden rounded-md bg-secondary ring-1 ring-transparent transition group-hover:ring-2 group-hover:ring-lb-green">
+                  {match.posterUrl && (
+                    <img
+                      src={match.posterUrl}
+                      alt={match.title}
+                      loading="lazy"
+                      className="absolute inset-0 size-full object-cover"
+                    />
+                  )}
+                </div>
+                <p className="mt-1 line-clamp-2 text-xs leading-tight">
+                  {match.title}
+                  {match.year && (
+                    <span className="text-muted-foreground"> ({match.year})</span>
+                  )}
+                </p>
+              </button>
+            ))}
+          </div>
+          <p className="text-muted-foreground text-xs">
+            Check the year before adding — barcodes can match multiple
+            releases.
+          </p>
+        </div>
+      )}
+
       {results &&
         results.length === 0 &&
         barcode &&
         !cexResult &&
-        !cexLookup.isPending && (
+        !webMatches &&
+        !cexLookup.isPending &&
+        !webLookup.isPending && (
           <div className="text-center">
             <Button
               variant="outline"
