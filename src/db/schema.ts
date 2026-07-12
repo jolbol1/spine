@@ -180,6 +180,24 @@ export const userSettings = pgTable(
   () => [ownerPolicy("user_settings_owner")]
 ).enableRLS()
 
+/**
+ * Global reference data scraped from criterion.com (via Firecrawl) —
+ * shared across users, so no RLS.
+ */
+export const criterionSpines = pgTable(
+  "criterion_spines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    spine: integer("spine").notNull(),
+    title: text("title").notNull(),
+    normalizedTitle: text("normalized_title").notNull(),
+    director: text("director"),
+    year: integer("year"),
+    fetchedAt: timestamp("fetched_at").notNull().defaultNow(),
+  },
+  (t) => [index("criterion_spines_title_idx").on(t.normalizedTitle)],
+)
+
 export type Film = typeof films.$inferSelect
 export type NewFilm = typeof films.$inferInsert
 export type WishlistItem = typeof wishlistItems.$inferSelect

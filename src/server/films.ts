@@ -3,6 +3,7 @@ import { asc, eq } from "drizzle-orm"
 import { z } from "zod"
 import { films, withUser } from "@/db"
 import { toSortTitle } from "@/lib/film-helpers"
+import { isCriterionLabel, lookupSpine } from "@/server/criterion-data"
 import { authMiddleware } from "@/server/middleware"
 import { fetchTmdbCast } from "@/server/tmdb"
 
@@ -72,14 +73,18 @@ export const createFilmFn = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(filmInput)
   .handler(async ({ context, data }) => {
-    // Best-effort cast enrichment; a TMDB miss never blocks the add.
+    // Best-effort enrichment; misses never block the add.
     const tmdb = await fetchTmdbCast(data.title, data.year ?? null)
+    const row = toRow(data)
+    if (row.spineNumber == null && isCriterionLabel(row.label)) {
+      row.spineNumber = await lookupSpine(data.title, data.year ?? null)
+    }
     const rows = await withUser(context.userId, (tx) =>
       tx
         .insert(films)
         .values({
           userId: context.userId,
-          ...toRow(data),
+          ...row,
           ...(tmdb && {
             tmdbId: tmdb.tmdbId,
             tmdbMediaType: tmdb.mediaType,

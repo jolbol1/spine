@@ -18,6 +18,7 @@ import {
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { settingsQuery } from "@/lib/queries"
+import { syncCriterionSpinesFn } from "@/server/criterion"
 import { syncLetterboxdFn } from "@/server/letterboxd"
 import { saveSettingsFn } from "@/server/settings"
 import { syncTmdbCastFn } from "@/server/tmdb"
@@ -76,6 +77,23 @@ function SettingsPage() {
       )
     },
     onError: () => toast.error("TMDB sync failed"),
+  })
+
+  const spineSync = useMutation({
+    mutationFn: () => syncCriterionSpinesFn(),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ["films"] })
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      toast.success(
+        result.scanned === 0
+          ? `All Criterion titles already have spine numbers (list has ${result.listSize} entries)`
+          : `Spine numbers filled for ${result.updated} of ${result.scanned} Criterion title${result.scanned === 1 ? "" : "s"}`,
+      )
+    },
+    onError: () => toast.error("Spine sync failed"),
   })
 
   return (
@@ -174,6 +192,37 @@ function SettingsPage() {
                 <RefreshCw className="size-4" />
               )}
               Fetch missing cast
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Criterion spine numbers</CardTitle>
+          <CardDescription>
+            Spine numbers come from criterion.com's release list and are
+            filled automatically when you add a film with a Criterion label.
+            Run a backfill for titles added before, or after new releases.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-muted-foreground text-sm">
+              Applies to films whose publisher contains "Criterion".
+            </p>
+            <Button
+              variant="secondary"
+              className="gap-2"
+              disabled={spineSync.isPending}
+              onClick={() => spineSync.mutate()}
+            >
+              {spineSync.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <RefreshCw className="size-4" />
+              )}
+              Fetch missing spines
             </Button>
           </div>
         </CardContent>
