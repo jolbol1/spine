@@ -1,7 +1,16 @@
 import { useSuspenseQuery } from "@tanstack/react-query"
 import { Link, createFileRoute } from "@tanstack/react-router"
 import { useMemo } from "react"
+import { Bar, BarChart, CartesianGrid, Pie, PieChart, XAxis, YAxis } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart"
+import type { ChartConfig } from "@/components/ui/chart"
 import {
   Empty,
   EmptyDescription,
@@ -113,6 +122,147 @@ function BreakdownCard({
   )
 }
 
+const CHART_COLORS = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+]
+
+function DecadeChart({ rows }: { rows: Array<[string, number]> }) {
+  const data = rows.map(([decade, count]) => ({ decade, count }))
+  const config = {
+    count: { label: "Titles", color: "var(--chart-1)" },
+  } satisfies ChartConfig
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">Titles by decade</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={config} className="h-64 w-full">
+          <BarChart accessibilityLayer data={data}>
+            <CartesianGrid vertical={false} />
+            <XAxis
+              dataKey="decade"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+            />
+            <YAxis
+              allowDecimals={false}
+              tickLine={false}
+              axisLine={false}
+              width={28}
+            />
+            <ChartTooltip
+              cursor={false}
+              content={<ChartTooltipContent hideLabel />}
+            />
+            <Bar dataKey="count" fill="var(--color-count)" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+  )
+}
+
+function DonutCard({
+  title,
+  rows,
+}: {
+  title: string
+  rows: Array<[string, number]>
+}) {
+  const data = rows.map(([name, count], i) => ({
+    name,
+    count,
+    fill: CHART_COLORS[i % CHART_COLORS.length],
+  }))
+  const config = Object.fromEntries(
+    rows.map(([name], i) => [
+      name,
+      { label: name, color: CHART_COLORS[i % CHART_COLORS.length] },
+    ]),
+  ) as ChartConfig
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {data.length === 0 ? (
+          <p className="text-muted-foreground text-sm">No data yet.</p>
+        ) : (
+          <ChartContainer config={config} className="mx-auto aspect-square h-56">
+            <PieChart>
+              <ChartTooltip
+                cursor={false}
+                content={<ChartTooltipContent hideLabel />}
+              />
+              <Pie
+                data={data}
+                dataKey="count"
+                nameKey="name"
+                innerRadius={50}
+                strokeWidth={2}
+              />
+              <ChartLegend content={<ChartLegendContent nameKey="name" />} />
+            </PieChart>
+          </ChartContainer>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function RegionChart({ rows }: { rows: Array<[string, number]> }) {
+  const data = rows.map(([region, count]) => ({ region, count }))
+  const config = {
+    count: { label: "Discs", color: "var(--chart-2)" },
+  } satisfies ChartConfig
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">Disc region</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {data.length === 0 ? (
+          <p className="text-muted-foreground text-sm">No data yet.</p>
+        ) : (
+          <ChartContainer config={config} className="h-56 w-full">
+            <BarChart accessibilityLayer data={data}>
+              <CartesianGrid vertical={false} />
+              <XAxis
+                dataKey="region"
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+              />
+              <YAxis
+                allowDecimals={false}
+                tickLine={false}
+                axisLine={false}
+                width={28}
+              />
+              <ChartTooltip
+                cursor={false}
+                content={<ChartTooltipContent hideLabel />}
+              />
+              <Bar
+                dataKey="count"
+                fill="var(--color-count)"
+                radius={[4, 4, 0, 0]}
+              />
+            </BarChart>
+          </ChartContainer>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 function StatsPage() {
   const { data: films } = useSuspenseQuery(filmsQuery)
 
@@ -186,17 +336,14 @@ function StatsPage() {
         />
       </div>
 
+      <DecadeChart rows={stats.byDecade} />
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <BreakdownCard
-          title="Titles by decade"
-          rows={stats.byDecade}
-          max={12}
-        />
+        <DonutCard title="Media type" rows={stats.byFormat} />
+        <DonutCard title="Resolution" rows={stats.byResolution} />
+        <RegionChart rows={stats.byRegion} />
         <BreakdownCard title="Top directors" rows={stats.topDirectors} />
         <BreakdownCard title="Top actors" rows={stats.topActors} max={10} />
-        <BreakdownCard title="Media type" rows={stats.byFormat} />
-        <BreakdownCard title="Resolution" rows={stats.byResolution} />
-        <BreakdownCard title="Disc region" rows={stats.byRegion} />
         <BreakdownCard
           title="Publisher by package type"
           rows={stats.publisherPackage}
