@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: movie
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      # postgres:18 images keep PGDATA under /var/lib/postgresql
+      - db-data:/var/lib/postgresql
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d movie"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      # App connection — RLS-scoped role created by docker/init-db.sql
+      DATABASE_URL: postgres://movie_app:movie_app@db:5432/movie
+      # Admin connection — schema push + RLS policies
+      DATABASE_URL_ADMIN: postgres://postgres:postgres@db:5432/movie
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me-in-production}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      # Optional integrations — picked up from your host .env if present
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      TMDB_API_KEY: ${TMDB_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db-data:

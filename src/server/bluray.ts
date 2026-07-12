@@ -144,7 +144,13 @@ export const importBlurayUrlFn = createServerFn({ method: "POST" })
           error: `Blu-ray.com returned ${res.status} for that link.`,
         }
       }
-      html = await res.text()
+      // Blu-ray.com serves ISO-8859-1; fetch's .text() would assume UTF-8
+      // and mangle accented names. Sniff the meta charset and decode right.
+      const bytes = await res.arrayBuffer()
+      const sniff = new TextDecoder("latin1").decode(bytes.slice(0, 2048))
+      const charset =
+        sniff.match(/charset=["']?([\w-]+)/i)?.[1] ?? "iso-8859-1"
+      html = new TextDecoder(charset).decode(bytes)
     } catch {
       return { success: false as const, error: "Could not reach Blu-ray.com." }
     }
@@ -172,9 +178,12 @@ export const importBlurayUrlFn = createServerFn({ method: "POST" })
       /Director:\s*<a[^>]*>([^<]+)<\/a>/,
     )
     const label = first(/movies\.php\?studioid=\d+[^>]*>([^<]+)</)
-    const audioLine = first(
-      /((?:[A-Z][a-z]+(?:\s[A-Z][a-z]+)?):\s*(?:LPCM|DTS|Dolby|PCM|TrueHD|Mono|MPEG)[^<(]*)/,
-    )
+    // The page has a dedicated audio block; "TBA" means not yet listed.
+    const audioBlock = first(/<div id="shortaudio">\s*([^<]+?)\s*<\/div>/)
+    const audioLine =
+      audioBlock && !/^TBA$/i.test(audioBlock)
+        ? audioBlock.split("\n")[0].trim()
+        : null
     const hdrLine = first(/HDR:?\s*(Dolby Vision[^<]*|HDR10\+?[^<]*)/)
     const region = first(/Region\s+([A-C](?:,\s*[A-C])*|Free)\b/)
     const spine = first(/Spine\s*#?\s*(\d+)/i)
