@@ -32,6 +32,13 @@ Optional integrations are read from a `.env` file next to the compose file
 (`FIRECRAWL_API_KEY`, `TMDB_API_KEY`); set `BETTER_AUTH_SECRET` for anything
 beyond local use. Data persists in the `db-data` volume.
 
+Hosting on a domain? Set two more variables in `.env`:
+
+```bash
+ALLOWED_HOSTS=spine.example.com   # or "*" behind your own reverse proxy
+BETTER_AUTH_URL=https://spine.example.com
+```
+
 ## Manual setup
 
 1. Start Postgres and create the database + app role:

@@ -25,7 +25,11 @@ services:
       # Admin connection — schema push + RLS policies
       DATABASE_URL_ADMIN: postgres://postgres:postgres@db:5432/movie
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me-in-production}
+      # Set to your public URL when hosting, e.g. https://spine.example.com
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      # Hosts allowed to reach the server: comma-separated list, or "*" for
+      # any (fine behind your own reverse proxy). Unset = localhost only.
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-}
       # Optional integrations — picked up from your host .env if present
       FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
       TMDB_API_KEY: ${TMDB_API_KEY:-}
