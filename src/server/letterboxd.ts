@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { XMLParser } from "fast-xml-parser"
 import { eq } from "drizzle-orm"
 import { films, userSettings, withUser } from "@/db"
+import { env } from "@/env"
 import { authMiddleware } from "@/server/middleware"
 
 interface RssItem {
@@ -41,28 +42,21 @@ export const syncLetterboxdFn = createServerFn({ method: "POST" })
       }
     }
 
-    let xml: string
-    try {
-      const res = await fetch(
-        `https://letterboxd.com/${encodeURIComponent(username)}/rss/`,
-        {
-          headers: { "User-Agent": "Mozilla/5.0 (Spine collection tracker)" },
-          signal: AbortSignal.timeout(15_000),
-        }
-      )
-      if (!res.ok) {
-        return {
-          ok: false as const,
-          error:
-            res.status === 404
-              ? `Letterboxd user “${username}” not found.`
-              : `Letterboxd returned ${res.status}.`,
-        }
+    const feed = await fetchLetterboxdPage(
+      `https://letterboxd.com/${encodeURIComponent(username)}/rss/`,
+    )
+    if (!feed.ok) {
+      return {
+        ok: false as const,
+        error:
+          feed.status === "notfound"
+            ? `Letterboxd user “${username}” not found.`
+            : env.FIRECRAWL_API_KEY
+              ? "Letterboxd is blocking requests right now — try again in a few minutes."
+              : "Letterboxd is blocking this server's requests. Set FIRECRAWL_API_KEY in .env so the sync can route around it.",
       }
-      xml = await res.text()
-    } catch {
-      return { ok: false as const, error: "Could not reach Letterboxd." }
     }
+    const xml = feed.html
 
     const parser = new XMLParser({ ignoreAttributes: true })
     const doc = parser.parse(xml)
@@ -155,6 +149,65 @@ export const syncLetterboxdFn = createServerFn({ method: "POST" })
 
 const MAX_DIARY_PAGES = 120 // ~6,000 entries — a runaway backstop
 
+type LetterboxdFetch =
+  | { ok: true; html: string; via: "direct" | "firecrawl" }
+  | { ok: false; status: "notfound" | "blocked" | "unreachable" }
+
+/**
+ * Fetch a Letterboxd page, falling back to Firecrawl when Letterboxd
+ * blocks the request — it refuses datacenter IPs outright, so a direct
+ * fetch that works from a home connection 403s from most hosting.
+ * `preferFirecrawl` skips the doomed direct attempt on subsequent pages.
+ */
+export async function fetchLetterboxdPage(
+  url: string,
+  preferFirecrawl = false,
+): Promise<LetterboxdFetch> {
+  if (!preferFirecrawl) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9",
+          "Accept-Language": "en-GB,en;q=0.9",
+        },
+        signal: AbortSignal.timeout(15_000),
+      })
+      if (res.ok) return { ok: true, html: await res.text(), via: "direct" }
+      if (res.status === 404) return { ok: false, status: "notfound" }
+      // 403/429/5xx — fall through to Firecrawl.
+    } catch {
+      // Network failure — fall through to Firecrawl.
+    }
+  }
+
+  if (!env.FIRECRAWL_API_KEY) return { ok: false, status: "blocked" }
+  try {
+    const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.FIRECRAWL_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ url, formats: ["rawHtml"] }),
+      signal: AbortSignal.timeout(90_000),
+    })
+    const payload = (await res.json()) as {
+      data?: { rawHtml?: string; metadata?: { statusCode?: number } }
+    }
+    if (payload.data?.metadata?.statusCode === 404) {
+      return { ok: false, status: "notfound" }
+    }
+    if (!res.ok || !payload.data?.rawHtml) {
+      return { ok: false, status: "blocked" }
+    }
+    return { ok: true, html: payload.data.rawHtml, via: "firecrawl" }
+  } catch {
+    return { ok: false, status: "unreachable" }
+  }
+}
+
 function decodeHtml(s: string): string {
   return s
     .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
@@ -218,8 +271,12 @@ export function parseDiaryPage(
         year: yearMatch ? Number(yearMatch[1]) : null,
         firstWatched: watched,
         rating: ratingHalf ? Number(ratingHalf) / 2 : null,
+        // Firecrawl's rawHtml rewrites hrefs to absolute URLs; direct
+        // fetches keep them relative — handle both.
         uri: reviewHref
-          ? `https://letterboxd.com${reviewHref}`
+          ? reviewHref.startsWith("http")
+            ? reviewHref
+            : `https://letterboxd.com${reviewHref}`
           : `https://letterboxd.com/${username}/film/${slug}/`,
       })
     }
@@ -252,47 +309,37 @@ export const syncLetterboxdHistoryFn = createServerFn({ method: "POST" })
 
     const diary = new Map<string, DiaryFilm>()
     let pages = 0
+    // Once a direct fetch gets blocked, stay on Firecrawl for the rest.
+    let viaFirecrawl = false
     for (let page = 1; page <= MAX_DIARY_PAGES; page++) {
-      let html: string
-      try {
-        const res = await fetch(
-          `https://letterboxd.com/${encodeURIComponent(username)}/diary/page/${page}/`,
-          {
-            headers: {
-              "User-Agent":
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-            },
-            signal: AbortSignal.timeout(15_000),
-          },
-        )
-        if (res.status === 404 && page === 1) {
+      const result = await fetchLetterboxdPage(
+        `https://letterboxd.com/${encodeURIComponent(username)}/diary/page/${page}/`,
+        viaFirecrawl,
+      )
+      if (!result.ok) {
+        if (page > 1) break // keep what we have
+        if (result.status === "notfound") {
           return {
             ok: false as const,
             error: `Letterboxd user “${username}” not found.`,
           }
         }
-        if (res.status === 403 && page === 1) {
-          return {
-            ok: false as const,
-            error:
-              "Letterboxd is rate-limiting requests — wait a few minutes and try again.",
-          }
+        return {
+          ok: false as const,
+          error: env.FIRECRAWL_API_KEY
+            ? "Letterboxd is blocking requests right now — try again in a few minutes."
+            : "Letterboxd is blocking this server's requests. Set FIRECRAWL_API_KEY in .env so the sync can route around it.",
         }
-        // Mid-crawl failure (rate limit, hiccup): keep what we have.
-        if (!res.ok) break
-        html = await res.text()
-      } catch {
-        if (page === 1) {
-          return { ok: false as const, error: "Could not reach Letterboxd." }
-        }
-        break
       }
+      viaFirecrawl = result.via === "firecrawl"
 
-      const rowCount = parseDiaryPage(html, username, diary)
+      const rowCount = parseDiaryPage(result.html, username, diary)
       if (rowCount === 0) break
       pages++
-      // Be polite to Letterboxd.
-      await new Promise((resolve) => setTimeout(resolve, 400))
+      // Be polite to Letterboxd (Firecrawl paces itself).
+      if (!viaFirecrawl) {
+        await new Promise((resolve) => setTimeout(resolve, 400))
+      }
     }
 
     if (diary.size === 0) {
