@@ -1,8 +1,25 @@
 import { createServerFn } from "@tanstack/react-start"
 import { and, eq, isNull, like, sql } from "drizzle-orm"
+import { z } from "zod"
 import { films, withUser } from "@/db"
 import { lookupSpine, refreshCacheIfStale } from "@/server/criterion-data"
 import { authMiddleware } from "@/server/middleware"
+
+/** One-off spine lookup for the add/edit form's auto-search button. */
+export const lookupSpineFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
+    z.object({
+      title: z.string().trim().min(1).max(500),
+      year: z.number().int().nullable(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const cache = await refreshCacheIfStale()
+    if (!cache.ok) return { ok: false as const, error: cache.error }
+    const spine = await lookupSpine(data.title, data.year)
+    return { ok: true as const, spine }
+  })
 
 /**
  * Backfill spine numbers for the user's Criterion-labelled films that

@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query"
-import { ImageIcon, Loader2, Search } from "lucide-react"
+import { ImageIcon, Loader2, Search, Sparkles } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import { PosterFrame } from "@/components/film-card"
@@ -25,6 +25,7 @@ import type { Film } from "@/db/schema"
 import { FORMATS, HDR_TYPES, PACKAGE_TYPES, REGIONS } from "@/lib/film-helpers"
 import { searchBlurayFn } from "@/server/bluray"
 import type { BlurayResult } from "@/server/bluray"
+import { lookupSpineFn } from "@/server/criterion"
 
 export interface FilmFormValues {
   title: string
@@ -124,6 +125,25 @@ export function FilmForm({
   onSubmit: (values: FilmFormValues) => void
 }) {
   const [values, setValues] = useState(initial)
+
+  const spineLookup = useMutation({
+    mutationFn: lookupSpineFn,
+    onSuccess: (result) => {
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      if (result.spine == null) {
+        toast.info(
+          `No Criterion spine found for “${values.title.trim()}” — is it in the Collection?`,
+        )
+        return
+      }
+      setValues((prev) => ({ ...prev, spineNumber: String(result.spine) }))
+      toast.success(`Spine #${result.spine}`)
+    },
+    onError: () => toast.error("Spine lookup failed"),
+  })
 
   const set = (key: keyof FilmFormValues) => (value: string) =>
     setValues((prev) => ({ ...prev, [key]: value }))
@@ -304,13 +324,37 @@ export function FilmForm({
           </Field>
           <Field>
             <FieldLabel htmlFor="spineNumber">Criterion spine #</FieldLabel>
-            <Input
-              id="spineNumber"
-              type="number"
-              min={1}
-              value={values.spineNumber}
-              onChange={input("spineNumber")}
-            />
+            <div className="flex gap-2">
+              <Input
+                id="spineNumber"
+                type="number"
+                min={1}
+                value={values.spineNumber}
+                onChange={input("spineNumber")}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Look up spine number on criterion.com"
+                title="Look up spine number"
+                disabled={!values.title.trim() || spineLookup.isPending}
+                onClick={() =>
+                  spineLookup.mutate({
+                    data: {
+                      title: values.title.trim(),
+                      year: values.year ? Number(values.year) : null,
+                    },
+                  })
+                }
+              >
+                {spineLookup.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Sparkles className="size-4" />
+                )}
+              </Button>
+            </div>
           </Field>
           <Field>
             <FieldLabel htmlFor="runtimeMinutes">Runtime (minutes)</FieldLabel>
