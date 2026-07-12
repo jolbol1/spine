@@ -1,6 +1,6 @@
 import { useSuspenseQuery } from "@tanstack/react-query"
 import { Link, createFileRoute } from "@tanstack/react-router"
-import { Search } from "lucide-react"
+import { Search, SlidersHorizontal, X } from "lucide-react"
 import { useMemo, useState } from "react"
 import { FilmCard } from "@/components/film-card"
 import { Button } from "@/components/ui/button"
@@ -32,6 +32,78 @@ type SortKey = "title" | "spine" | "year" | "added"
 
 const LETTERS = ["#", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"] as const
 
+const ANY = "any"
+
+/** Advanced-filter keys and how each reads its value off a film. */
+const FILTER_DEFS = [
+  {
+    key: "decade",
+    label: "Decade",
+    valueOf: (f: Film) =>
+      f.year != null ? `${Math.floor(f.year / 10) * 10}s` : null,
+  },
+  { key: "format", label: "Format", valueOf: (f: Film) => f.format },
+  { key: "hdr", label: "HDR", valueOf: (f: Film) => f.hdr ?? "SDR" },
+  { key: "region", label: "Region", valueOf: (f: Film) => f.region },
+  { key: "label", label: "Publisher", valueOf: (f: Film) => f.label },
+  {
+    key: "packageType",
+    label: "Package",
+    valueOf: (f: Film) => f.packageType,
+  },
+  { key: "edition", label: "Edition", valueOf: (f: Film) => f.edition },
+  {
+    key: "watched",
+    label: "Watched",
+    valueOf: (f: Film) => (isWatched(f) ? "Watched" : "Unwatched"),
+  },
+] as const
+
+type FilterKey = (typeof FILTER_DEFS)[number]["key"]
+type Filters = Record<FilterKey, string>
+
+const noFilters = Object.fromEntries(
+  FILTER_DEFS.map((d) => [d.key, ANY]),
+) as Filters
+
+function FilterSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string
+  value: string
+  options: Array<[string, number]>
+  onChange: (value: string) => void
+}) {
+  const items = {
+    [ANY]: "All",
+    ...Object.fromEntries(options.map(([name]) => [name, name])),
+  }
+  return (
+    <label className="space-y-1">
+      <span className="text-muted-foreground block text-[11px] font-semibold tracking-[0.12em] uppercase">
+        {label}
+      </span>
+      <Select value={value} items={items} onValueChange={(v) => onChange(v as string)}>
+        <SelectTrigger className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ANY}>All</SelectItem>
+          {options.map(([name, count]) => (
+            <SelectItem key={name} value={name}>
+              {name}{" "}
+              <span className="text-muted-foreground text-xs">({count})</span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </label>
+  )
+}
+
 function sortFilms(films: Film[], sort: SortKey): Film[] {
   const copy = [...films]
   switch (sort) {
@@ -56,8 +128,31 @@ function CollectionPage() {
   const [search, setSearch] = useState("")
   const [sort, setSort] = useState<SortKey>("title")
   const [letter, setLetter] = useState<string | null>(null)
+  const [filters, setFilters] = useState<Filters>(noFilters)
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   const presentLetters = useMemo(() => new Set(films.map(sortLetter)), [films])
+
+  // Distinct values (with counts) present in the collection, per filter.
+  const filterOptions = useMemo(() => {
+    const result = {} as Record<FilterKey, Array<[string, number]>>
+    for (const def of FILTER_DEFS) {
+      const counts = new Map<string, number>()
+      for (const film of films) {
+        const value = def.valueOf(film)
+        if (value == null || value === "") continue
+        counts.set(value, (counts.get(value) ?? 0) + 1)
+      }
+      result[def.key] = [...counts.entries()].sort((a, b) =>
+        a[0].localeCompare(b[0], undefined, { numeric: true }),
+      )
+    }
+    return result
+  }, [films])
+
+  const activeFilterCount = FILTER_DEFS.filter(
+    (d) => filters[d.key] !== ANY,
+  ).length
 
   const visible = useMemo(() => {
     let list = sortFilms(films, sort)
@@ -71,11 +166,16 @@ function CollectionPage() {
           (f.spineNumber != null && `#${f.spineNumber}`.includes(q))
       )
     }
+    for (const def of FILTER_DEFS) {
+      const wanted = filters[def.key]
+      if (wanted === ANY) continue
+      list = list.filter((f) => def.valueOf(f) === wanted)
+    }
     if (letter && sort === "title") {
       list = list.filter((f) => sortLetter(f) === letter)
     }
     return list
-  }, [films, search, sort, letter])
+  }, [films, search, sort, letter, filters])
 
   const watchedCount = films.filter(isWatched).length
 
@@ -141,8 +241,55 @@ function CollectionPage() {
               <SelectItem value="added">Recently added</SelectItem>
             </SelectContent>
           </Select>
+          <Button
+            variant={activeFilterCount > 0 ? "secondary" : "outline"}
+            className="gap-2"
+            aria-expanded={filtersOpen}
+            onClick={() => setFiltersOpen((open) => !open)}
+          >
+            <SlidersHorizontal className="size-4" />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="rounded-full bg-lb-green px-1.5 text-xs font-bold text-[#07130b] tabular-nums">
+                {activeFilterCount}
+              </span>
+            )}
+          </Button>
         </div>
       </div>
+
+      {filtersOpen && (
+        <div className="bg-card space-y-3 rounded-lg border p-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {FILTER_DEFS.map((def) => (
+              <FilterSelect
+                key={def.key}
+                label={def.label}
+                value={filters[def.key]}
+                options={filterOptions[def.key]}
+                onChange={(value) =>
+                  setFilters((prev) => ({ ...prev, [def.key]: value }))
+                }
+              />
+            ))}
+          </div>
+          {activeFilterCount > 0 && (
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-muted-foreground text-xs">
+                {visible.length} title{visible.length === 1 ? "" : "s"} match
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setFilters(noFilters)}
+              >
+                <X className="size-3.5" /> Clear all
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       {sort === "title" && (
         <nav
