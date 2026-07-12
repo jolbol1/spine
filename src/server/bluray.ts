@@ -179,7 +179,8 @@ export const importBlurayUrlFn = createServerFn({ method: "POST" })
     )
     const label = first(/movies\.php\?studioid=\d+[^>]*>([^<]+)</)
     // The page has a dedicated audio block; "TBA" means not yet listed.
-    const audioBlock = first(/<div id="shortaudio">\s*([^<]+?)\s*<\/div>/)
+    // Content is followed by <br> tags, so capture up to the first tag.
+    const audioBlock = first(/<div id="shortaudio">\s*([^<]+)/)
     const audioLine =
       audioBlock && !/^TBA$/i.test(audioBlock)
         ? audioBlock.split("\n")[0].trim()

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
-import { useState } from "react"
+import { Loader2 } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { z } from "zod"
 import { BlurayImportBox } from "@/components/bluray-import"
@@ -10,6 +11,7 @@ import {
   valuesToInput,
 } from "@/components/film-form"
 import type { FilmFormValues } from "@/components/film-form"
+import { importBlurayUrlFn } from "@/server/bluray"
 import type { BlurayImport } from "@/server/bluray"
 import { createFilmFn } from "@/server/films"
 
@@ -18,6 +20,8 @@ const searchSchema = z.object({
   year: z.string().optional(),
   coverUrl: z.string().optional(),
   barcode: z.string().optional(),
+  /** Blu-ray.com product URL to auto-import on load (from the scanner). */
+  importUrl: z.string().optional(),
 })
 
 export const Route = createFileRoute("/_app/add")({
@@ -69,6 +73,35 @@ function AddFilmPage() {
     onError: () => toast.error("Could not add the film — check the fields"),
   })
 
+  const applyImport = (data: BlurayImport) => {
+    setImported({
+      ...importToValues(data),
+      barcode: prefill.barcode ?? "",
+    })
+    setFormKey((k) => k + 1)
+  }
+
+  // Auto-import when the scanner hands us a product URL.
+  const autoImport = useMutation({
+    mutationFn: (url: string) => importBlurayUrlFn({ data: { url } }),
+    onSuccess: (result) => {
+      if (result.success) {
+        applyImport(result.data)
+      } else {
+        toast.error(result.error)
+      }
+    },
+    onError: () =>
+      toast.error("Import failed — the basics from the scan are filled in"),
+  })
+  const autoImportStarted = useRef(false)
+  useEffect(() => {
+    if (prefill.importUrl && !autoImportStarted.current) {
+      autoImportStarted.current = true
+      autoImport.mutate(prefill.importUrl)
+    }
+  }, [prefill.importUrl, autoImport])
+
   return (
     <div className="space-y-6">
       <div>
@@ -78,12 +111,13 @@ function AddFilmPage() {
           details — or fill the form in by hand.
         </p>
       </div>
-      <BlurayImportBox
-        onImport={(data) => {
-          setImported(importToValues(data))
-          setFormKey((k) => k + 1)
-        }}
-      />
+      <BlurayImportBox onImport={applyImport} />
+      {autoImport.isPending && (
+        <p className="text-muted-foreground flex items-center gap-2 text-sm">
+          <Loader2 className="size-4 animate-spin" />
+          Importing full disc details from Blu-ray.com…
+        </p>
+      )}
       <FilmForm
         key={formKey}
         initial={

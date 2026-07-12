@@ -108,9 +108,12 @@ function ScanPage() {
   useEffect(() => stopCamera, [stopCamera])
 
   function pickResult(result: BlurayResult) {
+    // Hand the product URL to the add page so it can run the full
+    // importer (audio, director, runtime, region, …), not just the basics.
     navigate({
       to: "/add",
       search: {
+        importUrl: result.url,
         title: cleanBlurayTitle(result.title),
         year: result.year?.toString(),
         coverUrl: result.coverUrl,
