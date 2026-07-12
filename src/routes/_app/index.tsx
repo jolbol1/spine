@@ -1,7 +1,8 @@
 import { useSuspenseQuery } from "@tanstack/react-query"
-import { Link, createFileRoute } from "@tanstack/react-router"
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router"
 import { Search, SlidersHorizontal, X } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { z } from "zod"
 import { FilmCard } from "@/components/film-card"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,7 +24,26 @@ import { isWatched, sortLetter } from "@/lib/film-helpers"
 import { filmsQuery } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 
+/**
+ * The whole browse state lives in the URL, so a refresh (or a shared
+ * link) restores the same search, sort, letter, and filters.
+ */
+const searchSchema = z.object({
+  q: z.string().optional(),
+  sort: z.enum(["title", "spine", "year", "added"]).optional(),
+  letter: z.string().max(1).optional(),
+  decade: z.string().optional(),
+  format: z.string().optional(),
+  hdr: z.string().optional(),
+  region: z.string().optional(),
+  label: z.string().optional(),
+  packageType: z.string().optional(),
+  edition: z.string().optional(),
+  watched: z.string().optional(),
+})
+
 export const Route = createFileRoute("/_app/")({
+  validateSearch: searchSchema,
   loader: ({ context }) => context.queryClient.ensureQueryData(filmsQuery),
   component: CollectionPage,
 })
@@ -61,10 +81,6 @@ const FILTER_DEFS = [
 
 type FilterKey = (typeof FILTER_DEFS)[number]["key"]
 type Filters = Record<FilterKey, string>
-
-const noFilters = Object.fromEntries(
-  FILTER_DEFS.map((d) => [d.key, ANY]),
-) as Filters
 
 function FilterSelect({
   label,
@@ -125,11 +141,58 @@ function sortFilms(films: Film[], sort: SortKey): Film[] {
 
 function CollectionPage() {
   const { data: films } = useSuspenseQuery(filmsQuery)
-  const [search, setSearch] = useState("")
-  const [sort, setSort] = useState<SortKey>("title")
-  const [letter, setLetter] = useState<string | null>(null)
-  const [filters, setFilters] = useState<Filters>(noFilters)
-  const [filtersOpen, setFiltersOpen] = useState(false)
+  const params = Route.useSearch()
+  const navigate = useNavigate({ from: Route.fullPath })
+
+  const sort: SortKey = params.sort ?? "title"
+  const letter = params.letter ?? null
+  const filters: Filters = useMemo(
+    () =>
+      Object.fromEntries(
+        FILTER_DEFS.map((d) => [d.key, params[d.key] ?? ANY]),
+      ) as Filters,
+    [params],
+  )
+
+  /** Merge a partial state change into the URL (replace — no history spam). */
+  const setParams = (
+    patch: Partial<Record<keyof z.infer<typeof searchSchema>, string | null>>,
+  ) => {
+    navigate({
+      search: (prev) => {
+        const next: Record<string, unknown> = { ...prev }
+        for (const [key, value] of Object.entries(patch)) {
+          if (value == null || value === "" || value === ANY) {
+            delete next[key]
+          } else {
+            next[key] = value
+          }
+        }
+        return next
+      },
+      replace: true,
+    })
+  }
+
+  // The search box types into local state; the URL follows, debounced.
+  const [search, setSearch] = useState(params.q ?? "")
+  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    return () => {
+      if (searchDebounce.current) clearTimeout(searchDebounce.current)
+    }
+  }, [])
+  const onSearchChange = (value: string) => {
+    setSearch(value)
+    if (searchDebounce.current) clearTimeout(searchDebounce.current)
+    searchDebounce.current = setTimeout(
+      () => setParams({ q: value.trim() || null }),
+      300,
+    )
+  }
+
+  const hasUrlFilters = FILTER_DEFS.some((d) => params[d.key] != null)
+  const [filtersOpen, setFiltersOpen] = useState(hasUrlFilters)
 
   const presentLetters = useMemo(() => new Set(films.map(sortLetter)), [films])
 
@@ -213,7 +276,7 @@ function CollectionPage() {
             <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => onSearchChange(e.target.value)}
               placeholder="Search title, director, spine…"
               className="w-64 pl-8"
             />
@@ -227,8 +290,7 @@ function CollectionPage() {
               added: "Recently added",
             }}
             onValueChange={(v) => {
-              setSort(v as SortKey)
-              setLetter(null)
+              setParams({ sort: v === "title" ? null : (v), letter: null })
             }}
           >
             <SelectTrigger className="w-44">
@@ -268,7 +330,7 @@ function CollectionPage() {
                 value={filters[def.key]}
                 options={filterOptions[def.key]}
                 onChange={(value) =>
-                  setFilters((prev) => ({ ...prev, [def.key]: value }))
+                  setParams({ [def.key]: value })
                 }
               />
             ))}
@@ -282,7 +344,11 @@ function CollectionPage() {
                 variant="ghost"
                 size="sm"
                 className="gap-1.5"
-                onClick={() => setFilters(noFilters)}
+                onClick={() =>
+                  setParams(
+                    Object.fromEntries(FILTER_DEFS.map((d) => [d.key, null])),
+                  )
+                }
               >
                 <X className="size-3.5" /> Clear all
               </Button>
@@ -298,7 +364,7 @@ function CollectionPage() {
         >
           <button
             type="button"
-            onClick={() => setLetter(null)}
+            onClick={() => setParams({ letter: null })}
             className={cn(
               "rounded px-1.5 py-0.5 text-xs font-bold",
               letter === null
@@ -313,7 +379,7 @@ function CollectionPage() {
               key={l}
               type="button"
               disabled={!presentLetters.has(l)}
-              onClick={() => setLetter(letter === l ? null : l)}
+              onClick={() => setParams({ letter: letter === l ? null : l })}
               className={cn(
                 "rounded px-1.5 py-0.5 text-xs font-bold tabular-nums",
                 letter === l

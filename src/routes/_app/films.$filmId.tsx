@@ -4,7 +4,14 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query"
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router"
-import { Eye, EyeOff, Pencil, RotateCcw, Trash2 } from "lucide-react"
+import {
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Pencil,
+  RotateCcw,
+  Trash2,
+} from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import { PosterFrame } from "@/components/film-card"
@@ -171,7 +178,18 @@ function FilmDetailPage() {
         <div className="rounded-lg border bg-card p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium">Watched tracking</p>
+              <p className="flex items-center gap-2 text-sm font-medium">
+                Watched tracking
+                {film.letterboxdRating != null && (
+                  <span
+                    className="text-lb-green font-bold tracking-tight"
+                    title={`Rated ${film.letterboxdRating} on Letterboxd`}
+                  >
+                    {"★".repeat(Math.floor(film.letterboxdRating))}
+                    {film.letterboxdRating % 1 !== 0 && "½"}
+                  </span>
+                )}
+              </p>
               <p className="text-xs text-muted-foreground">
                 {overridden
                   ? "Manually pinned — the Letterboxd sync won't change this."
@@ -185,6 +203,22 @@ function FilmDetailPage() {
               </p>
             </div>
             <div className="flex gap-2">
+              {film.letterboxdUri && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  render={
+                    <a
+                      href={film.letterboxdUri}
+                      target="_blank"
+                      rel="noreferrer"
+                    />
+                  }
+                >
+                  <ExternalLink className="size-3.5" /> Letterboxd
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant={watched ? "secondary" : "default"}

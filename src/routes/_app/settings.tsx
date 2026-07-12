@@ -4,7 +4,7 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query"
 import { createFileRoute } from "@tanstack/react-router"
-import { Loader2, RefreshCw } from "lucide-react"
+import { History, Loader2, RefreshCw } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -19,7 +19,10 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { settingsQuery } from "@/lib/queries"
 import { syncCriterionSpinesFn } from "@/server/criterion"
-import { syncLetterboxdFn } from "@/server/letterboxd"
+import {
+  syncLetterboxdFn,
+  syncLetterboxdHistoryFn,
+} from "@/server/letterboxd"
 import { saveSettingsFn } from "@/server/settings"
 import { syncTmdbCastFn } from "@/server/tmdb"
 
@@ -60,6 +63,26 @@ function SettingsPage() {
       )
     },
     onError: () => toast.error("Sync failed"),
+  })
+
+  const historySync = useMutation({
+    mutationFn: () => syncLetterboxdHistoryFn(),
+    onSuccess: async (result) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["settings"] }),
+        queryClient.invalidateQueries({ queryKey: ["films"] }),
+      ])
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      toast.success(
+        result.matched > 0
+          ? `Full history synced — ${result.matched} title${result.matched === 1 ? "" : "s"} newly marked watched (${result.filmsSeen} films across ${result.pages} page${result.pages === 1 ? "" : "s"})`
+          : `Full history synced — no new matches (${result.filmsSeen} films checked)`,
+      )
+    },
+    onError: () => toast.error("History sync failed"),
   })
 
   const tmdbSync = useMutation({
@@ -161,6 +184,30 @@ function SettingsPage() {
                 <RefreshCw className="size-4" />
               )}
               Sync now
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between gap-4 border-t pt-4">
+            <p className="text-sm text-muted-foreground">
+              The feed only covers recent entries. Sync your <b>full diary</b>{" "}
+              from letterboxd.com/{settings?.letterboxdUsername || "username"}
+              /diary — first watch dates, your ratings, and review links for
+              everything you've ever logged.
+            </p>
+            <Button
+              variant="secondary"
+              className="shrink-0 gap-2"
+              disabled={
+                historySync.isPending || !settings?.letterboxdUsername
+              }
+              onClick={() => historySync.mutate()}
+            >
+              {historySync.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <History className="size-4" />
+              )}
+              Sync full history
             </Button>
           </div>
         </CardContent>

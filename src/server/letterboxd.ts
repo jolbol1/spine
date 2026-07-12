@@ -9,6 +9,8 @@ interface RssItem {
   "letterboxd:filmYear"?: number
   "letterboxd:rewatch"?: string
   "letterboxd:watchedDate"?: string
+  "letterboxd:memberRating"?: number | string
+  link?: string
 }
 
 function normalizeTitle(title: string): string {
@@ -103,6 +105,10 @@ export const syncLetterboxdFn = createServerFn({ method: "POST" })
         return film.year === entryYear
       })
 
+      const rating = entry["letterboxd:memberRating"]
+        ? Number(entry["letterboxd:memberRating"]) || null
+        : null
+
       for (const film of targets) {
         if (film.letterboxdWatched) continue
         await withUser(context.userId, (tx) =>
@@ -113,6 +119,8 @@ export const syncLetterboxdFn = createServerFn({ method: "POST" })
               letterboxdWatchedAt: new Date(
                 `${entry["letterboxd:watchedDate"]}T00:00:00Z`
               ),
+              letterboxdRating: rating,
+              letterboxdUri: entry.link ?? null,
               updatedAt: new Date(),
             })
             .where(eq(films.id, film.id))
@@ -134,6 +142,224 @@ export const syncLetterboxdFn = createServerFn({ method: "POST" })
     return {
       ok: true as const,
       scanned: firstWatches.length,
+      matched,
+    }
+  })
+
+
+// ---------------------------------------------------------------------------
+// Full-history sync — scrapes letterboxd.com/<user>/diary/ page by page.
+// Unlike the RSS feed (~50 recent entries) the diary is the whole log, and
+// unlike the films grid it carries watch dates, ratings, and review links.
+// ---------------------------------------------------------------------------
+
+const MAX_DIARY_PAGES = 120 // ~6,000 entries — a runaway backstop
+
+function decodeHtml(s: string): string {
+  return s
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;|&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+}
+
+interface DiaryFilm {
+  title: string
+  year: number | null
+  firstWatched: Date
+  /** Most recent rating given (diary is newest-first). */
+  rating: number | null
+  /** The user's review page when any entry has a review, else their film page. */
+  uri: string
+}
+
+/**
+ * Parse one diary page's entry rows. Rows look like:
+ *   data-item-name="Boogie Nights (1997)" … data-item-slug="boogie-nights"
+ *   <a class="daydate" href="/user/diary/films/for/2026/07/11/">11</a>
+ *   <span class="rating rated-8">★★★★</span>          (rated-N = N half-stars)
+ *   <td class="col-review …"><a href="/user/film/…" … icon-review
+ */
+export function parseDiaryPage(
+  html: string,
+  username: string,
+  entries: Map<string, DiaryFilm>,
+): number {
+  const rows = html.split(/class="diary-entry-row/).slice(1)
+  for (const row of rows) {
+    const name = row.match(/data-item-name="([^"]+)"/)?.[1]
+    const slug = row.match(/data-item-slug="([^"]+)"/)?.[1]
+    const date = row.match(
+      /class="daydate" href="[^"]*\/for\/(\d{4})\/(\d{2})\/(\d{2})\//,
+    )
+    if (!name || !slug || !date) continue
+
+    const decoded = decodeHtml(name)
+    const yearMatch = decoded.match(/\s*\(((?:19|20)\d{2})\)\s*$/)
+    const watched = new Date(`${date[1]}-${date[2]}-${date[3]}T00:00:00Z`)
+    const ratingHalf = row.match(/class="rating rated-(\d+)"/)?.[1]
+    const reviewHref = row.match(
+      /col-review[^>]*>\s*<a href="([^"]+)"[^>]*icon-review/,
+    )?.[1]
+
+    const existing = entries.get(slug)
+    if (existing) {
+      // Diary is newest-first: keep the first-seen rating/review (most
+      // recent) and let the watch date sink to the earliest entry.
+      if (watched < existing.firstWatched) existing.firstWatched = watched
+      existing.rating ??= ratingHalf ? Number(ratingHalf) / 2 : null
+    } else {
+      entries.set(slug, {
+        title: yearMatch
+          ? decoded.slice(0, yearMatch.index).trim()
+          : decoded,
+        year: yearMatch ? Number(yearMatch[1]) : null,
+        firstWatched: watched,
+        rating: ratingHalf ? Number(ratingHalf) / 2 : null,
+        uri: reviewHref
+          ? `https://letterboxd.com${reviewHref}`
+          : `https://letterboxd.com/${username}/film/${slug}/`,
+      })
+    }
+  }
+  return rows.length
+}
+
+/**
+ * Sync the user's entire Letterboxd diary: earliest watch date per film,
+ * their star rating, and a link to their review/film page. Manual
+ * overrides still win in the UI.
+ */
+export const syncLetterboxdHistoryFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const settings = await withUser(context.userId, (tx) =>
+      tx
+        .select()
+        .from(userSettings)
+        .where(eq(userSettings.userId, context.userId))
+        .limit(1),
+    )
+    const username = settings[0]?.letterboxdUsername
+    if (!username) {
+      return {
+        ok: false as const,
+        error: "Set your Letterboxd username in Settings first.",
+      }
+    }
+
+    const diary = new Map<string, DiaryFilm>()
+    let pages = 0
+    for (let page = 1; page <= MAX_DIARY_PAGES; page++) {
+      let html: string
+      try {
+        const res = await fetch(
+          `https://letterboxd.com/${encodeURIComponent(username)}/diary/page/${page}/`,
+          {
+            headers: {
+              "User-Agent":
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+            },
+            signal: AbortSignal.timeout(15_000),
+          },
+        )
+        if (res.status === 404 && page === 1) {
+          return {
+            ok: false as const,
+            error: `Letterboxd user “${username}” not found.`,
+          }
+        }
+        if (res.status === 403 && page === 1) {
+          return {
+            ok: false as const,
+            error:
+              "Letterboxd is rate-limiting requests — wait a few minutes and try again.",
+          }
+        }
+        // Mid-crawl failure (rate limit, hiccup): keep what we have.
+        if (!res.ok) break
+        html = await res.text()
+      } catch {
+        if (page === 1) {
+          return { ok: false as const, error: "Could not reach Letterboxd." }
+        }
+        break
+      }
+
+      const rowCount = parseDiaryPage(html, username, diary)
+      if (rowCount === 0) break
+      pages++
+      // Be polite to Letterboxd.
+      await new Promise((resolve) => setTimeout(resolve, 400))
+    }
+
+    if (diary.size === 0) {
+      return {
+        ok: false as const,
+        error: "No diary entries found on that Letterboxd profile.",
+      }
+    }
+
+    const collection = await withUser(context.userId, (tx) =>
+      tx
+        .select({
+          id: films.id,
+          title: films.title,
+          year: films.year,
+        })
+        .from(films),
+    )
+
+    // Index diary films by normalized title.
+    const byTitle = new Map<string, DiaryFilm[]>()
+    for (const entry of diary.values()) {
+      const key = normalizeTitle(entry.title)
+      const list = byTitle.get(key)
+      if (list) list.push(entry)
+      else byTitle.set(key, [entry])
+    }
+
+    let matched = 0
+    for (const film of collection) {
+      const entries = byTitle.get(normalizeTitle(film.title))
+      const hit = entries?.find(
+        (entry) =>
+          film.year == null ||
+          entry.year == null ||
+          Math.abs(entry.year - film.year) <= 1,
+      )
+      if (!hit) continue
+      await withUser(context.userId, (tx) =>
+        tx
+          .update(films)
+          .set({
+            letterboxdWatched: true,
+            letterboxdWatchedAt: hit.firstWatched,
+            letterboxdRating: hit.rating,
+            letterboxdUri: hit.uri,
+            updatedAt: new Date(),
+          })
+          .where(eq(films.id, film.id)),
+      )
+      matched++
+    }
+
+    await withUser(context.userId, (tx) =>
+      tx
+        .insert(userSettings)
+        .values({ userId: context.userId, lastLetterboxdSyncAt: new Date() })
+        .onConflictDoUpdate({
+          target: userSettings.userId,
+          set: { lastLetterboxdSyncAt: new Date() },
+        }),
+    )
+
+    return {
+      ok: true as const,
+      pages,
+      filmsSeen: diary.size,
       matched,
     }
   })

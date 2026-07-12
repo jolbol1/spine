@@ -6,6 +6,7 @@ import {
   jsonb,
   pgPolicy,
   pgTable,
+  real,
   text,
   timestamp,
   uuid,
@@ -121,9 +122,13 @@ export const films = pgTable(
     tmdbMediaType: text("tmdb_media_type"), // movie | tv
     tmdbCast: jsonb("tmdb_cast").$type<CastMember[]>(),
 
-    /** Watched state derived from the Letterboxd RSS sync. */
+    /** Watched state derived from the Letterboxd sync. */
     letterboxdWatched: boolean("letterboxd_watched").notNull().default(false),
     letterboxdWatchedAt: timestamp("letterboxd_watched_at"),
+    /** Star rating (0.5–5) the user gave on Letterboxd, when synced. */
+    letterboxdRating: real("letterboxd_rating"),
+    /** The user's review/film page on Letterboxd for this title. */
+    letterboxdUri: text("letterboxd_uri"),
     /**
      * Manual per-title override: null = follow Letterboxd sync,
      * true/false = user has pinned the watched state.
