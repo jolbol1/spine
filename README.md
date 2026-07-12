@@ -18,7 +18,19 @@ Track your physical media collection — Letterboxd-inspired, self-hosted.
 
 TanStack Start · TanStack Query · shadcn/ui (Base UI, base-lyra) · Tailwind v4 · Drizzle ORM · Postgres · better-auth · Bun
 
-## Setup
+## Quick start with Docker
+
+```bash
+docker compose up --build
+```
+
+That's it — Postgres 18 starts with the RLS role, the schema is pushed and
+policies applied on boot, and the app serves at http://localhost:3000.
+Optional integrations are read from a `.env` file next to the compose file
+(`FIRECRAWL_API_KEY`, `TMDB_API_KEY`); set `BETTER_AUTH_SECRET` for anything
+beyond local use. Data persists in the `db-data` volume.
+
+## Manual setup
 
 1. Start Postgres and create the database + app role:
 
