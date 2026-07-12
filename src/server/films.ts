@@ -79,6 +79,11 @@ export const createFilmFn = createServerFn({ method: "POST" })
     if (row.spineNumber == null && isCriterionLabel(row.label)) {
       row.spineNumber = await lookupSpine(data.title, data.year ?? null)
     }
+    // TMDB fills whatever the disc source didn't know.
+    if (tmdb) {
+      row.director ??= tmdb.directors.join(", ") || null
+      row.coverUrl ??= tmdb.posterUrl
+    }
     const rows = await withUser(context.userId, (tx) =>
       tx
         .insert(films)

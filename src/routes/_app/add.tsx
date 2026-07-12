@@ -13,6 +13,8 @@ import {
 import type { FilmFormValues } from "@/components/film-form"
 import { importBlurayUrlFn } from "@/server/bluray"
 import type { BlurayImport } from "@/server/bluray"
+import { importCexFn } from "@/server/cex"
+import type { CexImport } from "@/server/cex"
 import { createFilmFn } from "@/server/films"
 
 const searchSchema = z.object({
@@ -22,6 +24,8 @@ const searchSchema = z.object({
   barcode: z.string().optional(),
   /** Blu-ray.com product URL to auto-import on load (from the scanner). */
   importUrl: z.string().optional(),
+  /** CEX barcode to auto-import on load (obscure-DVD fallback). */
+  cexId: z.string().optional(),
 })
 
 export const Route = createFileRoute("/_app/add")({
@@ -36,6 +40,29 @@ function normalizeHdr(hdr: string | null): string {
   if (hdr.includes("HDR10+")) return "HDR10+"
   if (hdr.includes("HDR10")) return "HDR10"
   return ""
+}
+
+/** CEX disc details → form values; catalogue extras land in the notes. */
+function cexToValues(data: CexImport): FilmFormValues {
+  const notes = [
+    data.bbfcRating && `BBFC: ${data.bbfcRating}`,
+    data.genres.length > 0 && `Genre: ${data.genres.join(", ")}`,
+    data.publisher && `Publisher: ${data.publisher}`,
+    data.supplier && `Supplier: ${data.supplier}`,
+  ]
+    .filter(Boolean)
+    .join("\n")
+  return {
+    ...emptyFilmValues,
+    title: data.title,
+    year: data.year?.toString() ?? "",
+    format: data.format,
+    label: data.label ?? "",
+    runtimeMinutes: data.runtimeMinutes?.toString() ?? "",
+    coverUrl: data.coverUrl ?? "",
+    barcode: data.barcode,
+    notes,
+  }
 }
 
 function importToValues(data: BlurayImport): FilmFormValues {
@@ -94,13 +121,31 @@ function AddFilmPage() {
     onError: () =>
       toast.error("Import failed — the basics from the scan are filled in"),
   })
+  // Auto-import CEX details when the scanner found the disc there instead.
+  const cexImport = useMutation({
+    mutationFn: (cexId: string) => importCexFn({ data: { barcode: cexId } }),
+    onSuccess: (result) => {
+      if (result.success) {
+        setImported(cexToValues(result.data))
+        setFormKey((k) => k + 1)
+      } else {
+        toast.error(result.error)
+      }
+    },
+    onError: () => toast.error("CEX import failed"),
+  })
+
   const autoImportStarted = useRef(false)
   useEffect(() => {
-    if (prefill.importUrl && !autoImportStarted.current) {
+    if (autoImportStarted.current) return
+    if (prefill.importUrl) {
       autoImportStarted.current = true
       autoImport.mutate(prefill.importUrl)
+    } else if (prefill.cexId) {
+      autoImportStarted.current = true
+      cexImport.mutate(prefill.cexId)
     }
-  }, [prefill.importUrl, autoImport])
+  }, [prefill.importUrl, prefill.cexId, autoImport, cexImport])
 
   return (
     <div className="space-y-6">
@@ -112,10 +157,11 @@ function AddFilmPage() {
         </p>
       </div>
       <BlurayImportBox onImport={applyImport} />
-      {autoImport.isPending && (
+      {(autoImport.isPending || cexImport.isPending) && (
         <p className="text-muted-foreground flex items-center gap-2 text-sm">
           <Loader2 className="size-4 animate-spin" />
-          Importing full disc details from Blu-ray.com…
+          Importing full disc details from{" "}
+          {cexImport.isPending ? "CEX" : "Blu-ray.com"}…
         </p>
       )}
       <FilmForm

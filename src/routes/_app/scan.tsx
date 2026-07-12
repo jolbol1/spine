@@ -10,6 +10,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { searchBlurayFn } from "@/server/bluray"
 import type { BlurayResult } from "@/server/bluray"
+import { importCexFn } from "@/server/cex"
+import type { CexImport } from "@/server/cex"
 
 export const Route = createFileRoute("/_app/scan")({
   component: ScanPage,
@@ -27,15 +29,30 @@ function ScanPage() {
   const [barcode, setBarcode] = useState<string | null>(null)
   const [manual, setManual] = useState("")
   const [results, setResults] = useState<BlurayResult[] | null>(null)
+  const [cexResult, setCexResult] = useState<CexImport | null>(null)
+
+  // Fallback for older/obscure discs Blu-ray.com doesn't list.
+  const cexLookup = useMutation({
+    mutationFn: (code: string) => importCexFn({ data: { barcode: code } }),
+    onSuccess: (result, code) => {
+      if (result.success) {
+        setCexResult(result.data)
+      } else {
+        toast.info(
+          `No match for ${code} on Blu-ray.com or CEX — you can still add it manually.`,
+        )
+      }
+    },
+    onError: () => toast.error("CEX lookup failed"),
+  })
 
   const lookup = useMutation({
     mutationFn: (code: string) => searchBlurayFn({ data: { query: code } }),
     onSuccess: (found, code) => {
       setResults(found)
       if (found.length === 0) {
-        toast.info(
-          `No Blu-ray.com match for ${code} — you can still add it manually.`
-        )
+        // Not on Blu-ray.com — try CEX before giving up.
+        cexLookup.mutate(code)
       }
     },
     onError: () => toast.error("Lookup failed"),
@@ -52,6 +69,7 @@ function ScanPage() {
       stopCamera()
       setCameraState("idle")
       setBarcode(code)
+      setCexResult(null)
       lookup.mutate(code)
     },
     [lookup, stopCamera]
@@ -60,6 +78,7 @@ function ScanPage() {
   const startCamera = useCallback(async () => {
     setResults(null)
     setBarcode(null)
+    setCexResult(null)
     setCameraState("starting")
 
     // zxing-wasm polyfill: works even where native BarcodeDetector is absent.
@@ -192,6 +211,7 @@ function ScanPage() {
               if (!code) return
               setBarcode(code)
               setResults(null)
+              setCexResult(null)
               lookup.mutate(code)
             }}
           >
@@ -217,7 +237,53 @@ function ScanPage() {
         <p className="text-center text-sm text-muted-foreground">
           Barcode <span className="font-mono text-foreground">{barcode}</span>
           {lookup.isPending && " — searching Blu-ray.com…"}
+          {cexLookup.isPending && " — not on Blu-ray.com, trying CEX…"}
         </p>
+      )}
+
+      {cexResult && (
+        <div className="space-y-3">
+          <h2 className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+            Found on CEX
+          </h2>
+          <Card>
+            <CardContent className="flex items-center gap-4 p-4">
+              <div className="h-28 w-20 shrink-0 overflow-hidden rounded-md bg-secondary">
+                {cexResult.coverUrl && (
+                  <img
+                    src={cexResult.coverUrl}
+                    alt=""
+                    className="size-full object-cover"
+                  />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">{cexResult.title}</p>
+                <p className="text-sm text-muted-foreground">
+                  {[
+                    cexResult.year,
+                    cexResult.format,
+                    cexResult.runtimeMinutes && `${cexResult.runtimeMinutes} min`,
+                    cexResult.bbfcRating && `BBFC ${cexResult.bbfcRating}`,
+                    cexResult.label,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              </div>
+              <Button
+                onClick={() =>
+                  navigate({
+                    to: "/add",
+                    search: { cexId: cexResult.barcode, barcode: cexResult.barcode },
+                  })
+                }
+              >
+                Use these details
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {results && results.length > 0 && (
@@ -250,16 +316,20 @@ function ScanPage() {
         </div>
       )}
 
-      {results && results.length === 0 && barcode && (
-        <div className="text-center">
-          <Button
-            variant="outline"
-            onClick={() => navigate({ to: "/add", search: { barcode } })}
-          >
-            Add manually with barcode {barcode}
-          </Button>
-        </div>
-      )}
+      {results &&
+        results.length === 0 &&
+        barcode &&
+        !cexResult &&
+        !cexLookup.isPending && (
+          <div className="text-center">
+            <Button
+              variant="outline"
+              onClick={() => navigate({ to: "/add", search: { barcode } })}
+            >
+              Add manually with barcode {barcode}
+            </Button>
+          </div>
+        )}
     </div>
   )
 }

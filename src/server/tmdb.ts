@@ -28,11 +28,16 @@ interface TmdbMatch {
   tmdbId: number
   mediaType: "movie" | "tv"
   cast: CastMember[]
+  /** Director name(s) — movies only; TV series direct per-episode. */
+  directors: string[]
+  posterUrl: string | null
 }
 
 /**
  * Find a film or TV show on TMDB by title (+year when known) and return its
- * top-billed cast. Returns null when TMDB is not configured or no match.
+ * top-billed cast, directors, and poster — used to fill whatever the disc
+ * source (Blu-ray.com / CEX / manual entry) didn't provide.
+ * Returns null when TMDB is not configured or no match.
  */
 export async function fetchTmdbCast(
   title: string,
@@ -52,6 +57,7 @@ export async function fetchTmdbCast(
         media_type: string
         release_date?: string
         first_air_date?: string
+        poster_path?: string | null
       }>
     }
 
@@ -88,6 +94,7 @@ export async function fetchTmdbCast(
         roles?: Array<{ character?: string }>
         profile_path?: string | null
       }>
+      crew?: Array<{ name: string; job?: string }>
     }
 
     const cast: CastMember[] = (credits.cast ?? [])
@@ -100,7 +107,26 @@ export async function fetchTmdbCast(
         profilePath: member.profile_path ?? null,
       }))
 
-    return { tmdbId: match.id, mediaType, cast }
+    const directors =
+      mediaType === "movie"
+        ? [
+            ...new Set(
+              (credits.crew ?? [])
+                .filter((member) => member.job === "Director")
+                .map((member) => member.name),
+            ),
+          ]
+        : []
+
+    return {
+      tmdbId: match.id,
+      mediaType,
+      cast,
+      directors,
+      posterUrl: match.poster_path
+        ? `https://image.tmdb.org/t/p/w500${match.poster_path}`
+        : null,
+    }
   } catch {
     return null
   }
