@@ -20,6 +20,7 @@ import { Route as AppScanRouteImport } from './routes/_app/scan'
 import { Route as AppOracleRouteImport } from './routes/_app/oracle'
 import { Route as AppAddRouteImport } from './routes/_app/add'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as AppPeoplePersonRouteImport } from './routes/_app/people.$person'
 import { Route as AppFilmsFilmIdRouteImport } from './routes/_app/films.$filmId'
 
 const SignupRoute = SignupRouteImport.update({
@@ -76,6 +77,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppPeoplePersonRoute = AppPeoplePersonRouteImport.update({
+  id: '/people/$person',
+  path: '/people/$person',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppFilmsFilmIdRoute = AppFilmsFilmIdRouteImport.update({
   id: '/films/$filmId',
   path: '/films/$filmId',
@@ -93,6 +99,7 @@ export interface FileRoutesByFullPath {
   '/stats': typeof AppStatsRoute
   '/wishlist': typeof AppWishlistRoute
   '/films/$filmId': typeof AppFilmsFilmIdRoute
+  '/people/$person': typeof AppPeoplePersonRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/wishlist': typeof AppWishlistRoute
   '/': typeof AppIndexRoute
   '/films/$filmId': typeof AppFilmsFilmIdRoute
+  '/people/$person': typeof AppPeoplePersonRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
@@ -121,6 +129,7 @@ export interface FileRoutesById {
   '/_app/wishlist': typeof AppWishlistRoute
   '/_app/': typeof AppIndexRoute
   '/_app/films/$filmId': typeof AppFilmsFilmIdRoute
+  '/_app/people/$person': typeof AppPeoplePersonRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
@@ -136,6 +145,7 @@ export interface FileRouteTypes {
     | '/stats'
     | '/wishlist'
     | '/films/$filmId'
+    | '/people/$person'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -149,6 +159,7 @@ export interface FileRouteTypes {
     | '/wishlist'
     | '/'
     | '/films/$filmId'
+    | '/people/$person'
     | '/api/auth/$'
   id:
     | '__root__'
@@ -163,6 +174,7 @@ export interface FileRouteTypes {
     | '/_app/wishlist'
     | '/_app/'
     | '/_app/films/$filmId'
+    | '/_app/people/$person'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
@@ -252,6 +264,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/people/$person': {
+      id: '/_app/people/$person'
+      path: '/people/$person'
+      fullPath: '/people/$person'
+      preLoaderRoute: typeof AppPeoplePersonRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/films/$filmId': {
       id: '/_app/films/$filmId'
       path: '/films/$filmId'
@@ -271,6 +290,7 @@ interface AppRouteChildren {
   AppWishlistRoute: typeof AppWishlistRoute
   AppIndexRoute: typeof AppIndexRoute
   AppFilmsFilmIdRoute: typeof AppFilmsFilmIdRoute
+  AppPeoplePersonRoute: typeof AppPeoplePersonRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -282,6 +302,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppWishlistRoute: AppWishlistRoute,
   AppIndexRoute: AppIndexRoute,
   AppFilmsFilmIdRoute: AppFilmsFilmIdRoute,
+  AppPeoplePersonRoute: AppPeoplePersonRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

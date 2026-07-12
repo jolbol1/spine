@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import type { Film } from "@/db/schema"
-import { formatRuntime, isWatched } from "@/lib/film-helpers"
+import { directorsOf, formatRuntime, isWatched } from "@/lib/film-helpers"
 import { filmsQuery } from "@/lib/queries"
 
 export const Route = createFileRoute("/_app/oracle")({
@@ -234,9 +234,20 @@ function OraclePage() {
               </h2>
               <div className="flex flex-wrap items-center justify-center gap-1.5">
                 {pick.year && <Badge variant="secondary">{pick.year}</Badge>}
-                {pick.director && (
-                  <Badge variant="secondary">{pick.director}</Badge>
-                )}
+                {directorsOf(pick).map((name) => (
+                  <Link
+                    key={name}
+                    to="/people/$person"
+                    params={{ person: name }}
+                  >
+                    <Badge
+                      variant="secondary"
+                      className="transition-colors hover:text-lb-green"
+                    >
+                      {name}
+                    </Badge>
+                  </Link>
+                ))}
                 <Badge variant="secondary">{pick.format}</Badge>
                 {pick.runtimeMinutes && (
                   <Badge className="bg-lb-orange text-[#1b0e00]">

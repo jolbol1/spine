@@ -46,6 +46,15 @@ export function resolutionOf(film: Pick<Film, "format">): string {
   }
 }
 
+/** Split a director field into individual names ("A, B" / "A & B"). */
+export function directorsOf(film: Pick<Film, "director">): string[] {
+  if (!film.director) return []
+  return film.director
+    .split(/,|&| and /)
+    .map((name) => name.trim())
+    .filter(Boolean)
+}
+
 export function formatRuntime(minutes: number): string {
   const h = Math.floor(minutes / 60)
   const m = minutes % 60

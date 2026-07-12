@@ -3,7 +3,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query"
-import { createFileRoute, useNavigate } from "@tanstack/react-router"
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router"
 import { Eye, EyeOff, Pencil, RotateCcw, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -20,7 +20,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
-import { formatRuntime, isWatched, resolutionOf } from "@/lib/film-helpers"
+import {
+  directorsOf,
+  formatRuntime,
+  isWatched,
+  resolutionOf,
+} from "@/lib/film-helpers"
 import { filmQuery } from "@/lib/queries"
 import {
   deleteFilmFn,
@@ -128,9 +133,18 @@ function FilmDetailPage() {
           {film.director && (
             <p className="text-muted-foreground">
               Directed by{" "}
-              <span className="font-medium text-foreground">
-                {film.director}
-              </span>
+              {directorsOf(film).map((name, i) => (
+                <span key={name}>
+                  {i > 0 && ", "}
+                  <Link
+                    to="/people/$person"
+                    params={{ person: name }}
+                    className="text-foreground font-medium transition-colors hover:text-lb-green"
+                  >
+                    {name}
+                  </Link>
+                </span>
+              ))}
             </p>
           )}
           <div className="flex flex-wrap gap-1.5 pt-1">
@@ -238,9 +252,11 @@ function FilmDetailPage() {
             </h2>
             <div className="flex flex-wrap gap-2">
               {film.tmdbCast.map((member) => (
-                <div
+                <Link
                   key={member.id}
-                  className="bg-card flex items-center gap-2 rounded-full border py-1 pr-3 pl-1"
+                  to="/people/$person"
+                  params={{ person: member.name }}
+                  className="bg-card flex items-center gap-2 rounded-full border py-1 pr-3 pl-1 transition-colors hover:border-lb-green"
                 >
                   {member.profilePath ? (
                     <img
@@ -266,7 +282,7 @@ function FilmDetailPage() {
                       </span>
                     )}
                   </span>
-                </div>
+                </Link>
               ))}
             </div>
           </div>

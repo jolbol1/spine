@@ -12,6 +12,8 @@ Track your physical media collection — Letterboxd-inspired, self-hosted.
 - 📷 Camera barcode scanning (UPC/EAN) to add discs
 - ⚡ Add by search or link — autocomplete against Blu-ray.com or paste a product URL; imports title, year, director, format, audio, HDR, region, publisher, spine #, runtime, disc count, and cover in one go
 - 🎭 TMDB cast enrichment — cast fetched automatically on add (movies and TV), shown on each film page, with a "Top actors" leaderboard in Stats (requires `TMDB_API_KEY`)
+- 👤 Person pages — click any actor or director anywhere to see everything of theirs in your collection, directing and acting credits on one page
+- 🏛️ Auto Criterion spine numbers — matched against criterion.com's release list on add and via a Settings backfill
 - 🔐 better-auth email/password + real Postgres row-level security
 
 ## Stack

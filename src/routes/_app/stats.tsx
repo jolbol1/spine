@@ -18,7 +18,12 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import type { Film } from "@/db/schema"
-import { formatRuntime, isWatched, resolutionOf } from "@/lib/film-helpers"
+import {
+  directorsOf,
+  formatRuntime,
+  isWatched,
+  resolutionOf,
+} from "@/lib/film-helpers"
 import { filmsQuery } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 
@@ -82,10 +87,13 @@ function BreakdownCard({
   title,
   rows,
   max = 8,
+  personLinks = false,
 }: {
   title: string
   rows: Array<[string, number]>
   max?: number
+  /** Link each row's name to its person page. */
+  personLinks?: boolean
 }) {
   const top = rows.slice(0, max)
   const total = rows.reduce((sum, [, n]) => sum + n, 0)
@@ -101,7 +109,17 @@ function BreakdownCard({
         {top.map(([name, count], i) => (
           <div key={name} className="space-y-1">
             <div className="flex items-baseline justify-between gap-2 text-sm">
-              <span className="truncate">{name}</span>
+              {personLinks ? (
+                <Link
+                  to="/people/$person"
+                  params={{ person: name }}
+                  className="truncate transition-colors hover:text-lb-green"
+                >
+                  {name}
+                </Link>
+              ) : (
+                <span className="truncate">{name}</span>
+              )}
               <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
                 {count}
               </span>
@@ -342,8 +360,17 @@ function StatsPage() {
         <DonutCard title="Media type" rows={stats.byFormat} />
         <DonutCard title="Resolution" rows={stats.byResolution} />
         <RegionChart rows={stats.byRegion} />
-        <BreakdownCard title="Top directors" rows={stats.topDirectors} />
-        <BreakdownCard title="Top actors" rows={stats.topActors} max={10} />
+        <BreakdownCard
+          title="Top directors"
+          rows={stats.topDirectors}
+          personLinks
+        />
+        <BreakdownCard
+          title="Top actors"
+          rows={stats.topActors}
+          max={10}
+          personLinks
+        />
         <BreakdownCard
           title="Publisher by package type"
           rows={stats.publisherPackage}
@@ -387,7 +414,7 @@ function computeStats(films: Film[]) {
     totalTitles: films.length,
     totalDiscs,
     uniqueDirectors: new Set(
-      films.map((f) => f.director?.trim().toLowerCase()).filter(Boolean)
+      films.flatMap(directorsOf).map((name) => name.toLowerCase())
     ).size,
     watched,
     watchedPct: Math.round((watched / films.length) * 100),
@@ -396,7 +423,7 @@ function computeStats(films: Film[]) {
     longest,
     shortest,
     byDecade,
-    topDirectors: tally(films, (f) => f.director?.trim() || null),
+    topDirectors: tally(films.flatMap(directorsOf), (name) => name),
     topActors: tally(
       films.flatMap((f) => f.tmdbCast ?? []),
       (member) => member.name,
