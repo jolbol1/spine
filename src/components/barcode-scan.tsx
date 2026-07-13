@@ -25,21 +25,26 @@ export function BarcodeScanDialog({
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const scanningRef = useRef(false)
+  const cameraRequestRef = useRef(0)
   const [cameraState, setCameraState] = useState<
     "starting" | "active" | "denied"
   >("starting")
 
   const stopCamera = useCallback(() => {
+    cameraRequestRef.current += 1
     scanningRef.current = false
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
   }, [])
 
   const startCamera = useCallback(async () => {
+    const requestId = cameraRequestRef.current + 1
+    cameraRequestRef.current = requestId
     setCameraState("starting")
 
     // zxing-wasm polyfill: works even where native BarcodeDetector is absent.
     const { BarcodeDetector } = await import("barcode-detector/ponyfill")
+    if (cameraRequestRef.current !== requestId) return
 
     let stream: MediaStream
     try {
@@ -48,15 +53,24 @@ export function BarcodeScanDialog({
         audio: false,
       })
     } catch {
-      setCameraState("denied")
+      if (cameraRequestRef.current === requestId) setCameraState("denied")
+      return
+    }
+
+    if (cameraRequestRef.current !== requestId) {
+      stream.getTracks().forEach((track) => track.stop())
       return
     }
 
     streamRef.current = stream
     const video = videoRef.current
-    if (!video) return
+    if (!video) {
+      stopCamera()
+      return
+    }
     video.srcObject = stream
     await video.play()
+    if (cameraRequestRef.current !== requestId) return
     setCameraState("active")
 
     const detector = new BarcodeDetector({
