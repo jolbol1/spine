@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { signOut } from "@/lib/auth-client"
+import { endSession } from "@/lib/end-session"
 import { settingsQuery } from "@/lib/queries"
 import { syncLetterboxdFn } from "@/server/letterboxd"
 
@@ -82,13 +83,17 @@ const navLinks = [
 
 function AppLayout() {
   const { user } = Route.useRouteContext()
+  const queryClient = useQueryClient()
   const router = useRouter()
   useAutoLetterboxdSync()
 
   async function handleSignOut() {
-    await signOut()
-    await router.invalidate()
-    await router.navigate({ to: "/login" })
+    await endSession({
+      queryClient,
+      signOut,
+      invalidateRouter: () => router.invalidate(),
+      navigateToLogin: () => router.navigate({ to: "/login" }),
+    })
   }
 
   return (
