@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { eq, isNull } from "drizzle-orm"
 import { z } from "zod"
 import { films, withUser } from "@/db"
+import { toRtScoreUpdate } from "@/lib/rt-score-update"
 import { authMiddleware } from "@/server/middleware"
 import { fetchPageWithFallback } from "@/server/scrape"
 
@@ -191,11 +192,7 @@ export const syncRottenTomatoesFn = createServerFn({ method: "POST" })
           .update(films)
           .set({
             rtSyncedAt: new Date(),
-            ...(result && {
-              rtUrl: result.url,
-              rtCriticsScore: result.criticsScore,
-              rtAudienceScore: result.audienceScore,
-            }),
+            ...toRtScoreUpdate(result),
             updatedAt: new Date(),
           })
           .where(eq(films.id, film.id)),
@@ -243,11 +240,7 @@ export const refreshRtScoresFn = createServerFn({ method: "POST" })
         .update(films)
         .set({
           rtSyncedAt: new Date(),
-          ...(result && {
-            rtUrl: result.url,
-            rtCriticsScore: result.criticsScore,
-            rtAudienceScore: result.audienceScore,
-          }),
+          ...toRtScoreUpdate(result),
           updatedAt: new Date(),
         })
         .where(eq(films.id, film.id)),
