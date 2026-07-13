@@ -146,7 +146,7 @@ export const updateFilmFn = createServerFn({ method: "POST" })
             })
             .from(films)
             .where(eq(films.id, id))
-            .limit(1),
+            .limit(1)
         )
       ).at(0)
       const changed =
@@ -157,7 +157,8 @@ export const updateFilmFn = createServerFn({ method: "POST" })
         const tmdb = await fetchTmdbById(rest.tmdbId, rest.tmdbMediaType)
         if (!tmdb) {
           return {
-            error: `TMDB has no ${rest.tmdbMediaType ?? "movie or TV"} title with id ${rest.tmdbId}.` as const,
+            error:
+              `TMDB has no ${rest.tmdbMediaType ?? "movie or TV"} title with id ${rest.tmdbId}.` as const,
           }
         }
         tmdbPatch = {

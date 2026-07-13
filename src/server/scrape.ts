@@ -16,7 +16,7 @@ export type PageFetch =
  */
 export async function fetchPageWithFallback(
   url: string,
-  preferFirecrawl = false,
+  preferFirecrawl = false
 ): Promise<PageFetch> {
   if (!preferFirecrawl) {
     try {

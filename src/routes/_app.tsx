@@ -43,7 +43,8 @@ function useAutoLetterboxdSync() {
     if (attempted.current || !settings?.letterboxdUsername) return
     const last = settings.lastLetterboxdSyncAt
     const stale =
-      last == null || Date.now() - new Date(last).getTime() > LETTERBOXD_STALE_MS
+      last == null ||
+      Date.now() - new Date(last).getTime() > LETTERBOXD_STALE_MS
     if (!stale) return
     attempted.current = true
 
@@ -56,7 +57,7 @@ function useAutoLetterboxdSync() {
         ])
         if (result.matched > 0) {
           toast.success(
-            `Letterboxd sync — ${result.matched} title${result.matched === 1 ? "" : "s"} newly marked watched`,
+            `Letterboxd sync — ${result.matched} title${result.matched === 1 ? "" : "s"} newly marked watched`
           )
         }
       })

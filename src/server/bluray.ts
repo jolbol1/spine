@@ -148,8 +148,7 @@ export const importBlurayUrlFn = createServerFn({ method: "POST" })
       // and mangle accented names. Sniff the meta charset and decode right.
       const bytes = await res.arrayBuffer()
       const sniff = new TextDecoder("latin1").decode(bytes.slice(0, 2048))
-      const charset =
-        sniff.match(/charset=["']?([\w-]+)/i)?.[1] ?? "iso-8859-1"
+      const charset = sniff.match(/charset=["']?([\w-]+)/i)?.[1] ?? "iso-8859-1"
       html = new TextDecoder(charset).decode(bytes)
     } catch {
       return { success: false as const, error: "Could not reach Blu-ray.com." }
@@ -170,13 +169,15 @@ export const importBlurayUrlFn = createServerFn({ method: "POST" })
     const is4k =
       /4K Blu-ray/i.test(rawTitle) || (resolution?.includes("2160") ?? false)
     const isDvd = /\/dvd\//.test(parsed.pathname) || /\bDVD\b/.test(rawTitle)
-    const format = is4k ? ("4K UHD" as const) : isDvd ? ("DVD" as const) : ("Blu-ray" as const)
+    const format = is4k
+      ? ("4K UHD" as const)
+      : isDvd
+        ? ("DVD" as const)
+        : ("Blu-ray" as const)
 
     const year = first(/movies\.php\?year=(\d{4})/)
     const runtime = first(/>(\d+)\s+min</)
-    const director = first(
-      /Director:\s*<a[^>]*>([^<]+)<\/a>/,
-    )
+    const director = first(/Director:\s*<a[^>]*>([^<]+)<\/a>/)
     const label = first(/movies\.php\?studioid=\d+[^>]*>([^<]+)</)
     // The page has a dedicated audio block; "TBA" means not yet listed.
     // Content is followed by <br> tags, so capture up to the first tag.
@@ -191,7 +192,9 @@ export const importBlurayUrlFn = createServerFn({ method: "POST" })
     const cover = first(/property="og:image" content="([^"]+)"/)
 
     let discCount = 1
-    const discWord = first(/\b(Single|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)-disc\b/i)
+    const discWord = first(
+      /\b(Single|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)-disc\b/i
+    )
     if (discWord) discCount = DISC_WORDS[discWord.toLowerCase()] ?? 1
 
     return {

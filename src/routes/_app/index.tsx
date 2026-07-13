@@ -114,7 +114,7 @@ export const Route = createFileRoute("/_app/")({
 
 /** Keep only params a saved view can restore — drops junk/stale keys. */
 function sanitizeViewParams(
-  params: Record<string, string>,
+  params: Record<string, string>
 ): Record<string, string> {
   const out: Record<string, string> = {}
   const shape: Record<string, z.ZodType | undefined> = searchSchema.shape
@@ -125,10 +125,7 @@ function sanitizeViewParams(
   return out
 }
 
-const paramsEqual = (
-  a: Record<string, string>,
-  b: Record<string, string>,
-) =>
+const paramsEqual = (a: Record<string, string>, b: Record<string, string>) =>
   JSON.stringify(Object.entries(a).sort()) ===
   JSON.stringify(Object.entries(b).sort())
 
@@ -360,9 +357,7 @@ const OVERLAY_DEFS: OverlayDef[] = [
     label: "Budget",
     colClass: "w-20",
     text: (f) =>
-      f.tmdbDetails?.budget
-        ? formatUsdCompact(f.tmdbDetails.budget)
-        : null,
+      f.tmdbDetails?.budget ? formatUsdCompact(f.tmdbDetails.budget) : null,
   },
   {
     key: "boxoffice",
@@ -370,9 +365,7 @@ const OVERLAY_DEFS: OverlayDef[] = [
     label: "Box office",
     colClass: "w-20",
     text: (f) =>
-      f.tmdbDetails?.revenue
-        ? formatUsdCompact(f.tmdbDetails.revenue)
-        : null,
+      f.tmdbDetails?.revenue ? formatUsdCompact(f.tmdbDetails.revenue) : null,
   },
   {
     key: "roi",
@@ -427,10 +420,14 @@ function FilterSelect({
   }
   return (
     <label className="space-y-1">
-      <span className="text-muted-foreground block text-[11px] font-semibold tracking-[0.12em] uppercase">
+      <span className="block text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
         {label}
       </span>
-      <Select value={value} items={items} onValueChange={(v) => onChange(v as string)}>
+      <Select
+        value={value}
+        items={items}
+        onValueChange={(v) => onChange(v as string)}
+      >
         <SelectTrigger className="w-full">
           <SelectValue />
         </SelectTrigger>
@@ -439,7 +436,7 @@ function FilterSelect({
           {options.map(([name, count]) => (
             <SelectItem key={name} value={name}>
               {name}{" "}
-              <span className="text-muted-foreground text-xs">({count})</span>
+              <span className="text-xs text-muted-foreground">({count})</span>
             </SelectItem>
           ))}
         </SelectContent>
@@ -476,7 +473,7 @@ function FilmRow({
     <Link
       to="/films/$filmId"
       params={{ filmId: film.id }}
-      className="hover:bg-secondary/40 flex items-center gap-3 px-3 py-2 transition-colors"
+      className="flex items-center gap-3 px-3 py-2 transition-colors hover:bg-secondary/40"
     >
       <div className={LIST_COLS.poster}>
         <PosterFrame coverUrl={film.coverUrl} title={film.title} />
@@ -485,16 +482,16 @@ function FilmRow({
         <p className="truncate text-sm font-medium">
           {film.title}
           {film.year != null && (
-            <span className="text-muted-foreground font-normal">
+            <span className="font-normal text-muted-foreground">
               {" "}
               ({film.year})
             </span>
           )}
         </p>
-        <p className="text-muted-foreground truncate text-xs">
+        <p className="truncate text-xs text-muted-foreground">
           {[film.director, film.edition].filter(Boolean).join(" · ")}
           {subtext && (
-            <span className="text-foreground font-medium tabular-nums">
+            <span className="font-medium text-foreground tabular-nums">
               {film.director || film.edition ? " · " : ""}
               {subtext}
             </span>
@@ -504,7 +501,7 @@ function FilmRow({
       <p className={cn(LIST_COLS.format, "truncate text-xs")}>
         <FormatBadge format={film.format} />
         {film.hdr && (
-          <span className="text-muted-foreground ml-1.5">{film.hdr}</span>
+          <span className="ml-1.5 text-muted-foreground">{film.hdr}</span>
         )}
       </p>
       {columns.map((def) => (
@@ -519,7 +516,7 @@ function FilmRow({
         {watched && (
           <span
             title="Watched"
-            className="bg-lb-green rounded-full p-1 text-[#07130b]"
+            className="rounded-full bg-lb-green p-1 text-[#07130b]"
           >
             <Eye className="size-3" />
           </span>
@@ -549,8 +546,8 @@ function HeaderSortButton({
       type="button"
       onClick={() => onSort(sortKey)}
       className={cn(
-        "hover:text-foreground flex items-center gap-1 truncate uppercase transition-colors",
-        active && "text-foreground",
+        "flex items-center gap-1 truncate uppercase transition-colors hover:text-foreground",
+        active && "text-foreground"
       )}
     >
       <span className="truncate">{label}</span>
@@ -571,7 +568,7 @@ function ListHeader({
   onSort: (key: SortKey) => void
 }) {
   return (
-    <div className="text-muted-foreground flex items-center gap-3 border-b px-3 py-2 text-[11px] font-semibold tracking-[0.12em] uppercase">
+    <div className="flex items-center gap-3 border-b px-3 py-2 text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
       <div className={LIST_COLS.poster} />
       <div className={LIST_COLS.title}>
         <HeaderSortButton
@@ -645,7 +642,7 @@ function sortFilms(films: Film[], sort: SortKey, dir?: "asc" | "desc"): Film[] {
     case "format":
       return byNumber(
         (f) => FORMATS.indexOf(f.format as (typeof FORMATS)[number]),
-        false,
+        false
       )
     default:
       // Already sorted by sortTitle from the server.
@@ -671,7 +668,7 @@ function CollectionPage() {
   const { data: settings } = useQuery(settingsQuery)
   const savedViews = useMemo(
     () => settings?.savedViews ?? [],
-    [settings?.savedViews],
+    [settings?.savedViews]
   )
 
   /** The current URL state, as a saved view would store it. */
@@ -679,19 +676,18 @@ function CollectionPage() {
     () =>
       sanitizeViewParams(
         Object.fromEntries(
-          Object.entries(params).map(([k, v]) => [k, String(v)]),
-        ),
+          Object.entries(params).map(([k, v]) => [k, String(v)])
+        )
       ),
-    [params],
+    [params]
   )
   const activeView = savedViews.find((v) =>
-    paramsEqual(sanitizeViewParams(v.params), currentParams),
+    paramsEqual(sanitizeViewParams(v.params), currentParams)
   )
 
   const saveViews = useMutation({
     mutationFn: (views: SavedView[]) => saveViewsFn({ data: { views } }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["settings"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["settings"] }),
     onError: () => toast.error("Could not save views"),
   })
 
@@ -734,7 +730,7 @@ function CollectionPage() {
       savedViews.map((v) => ({
         ...v,
         isDefault: v.name === name ? !v.isDefault || undefined : undefined,
-      })),
+      }))
     )
 
   // A fresh visit with no URL state loads the default view.
@@ -759,9 +755,9 @@ function CollectionPage() {
       new Set(
         (params.overlay ?? "")
           .split(",")
-          .filter((k) => OVERLAY_DEFS.some((d) => d.key === k)),
+          .filter((k) => OVERLAY_DEFS.some((d) => d.key === k))
       ),
-    [params.overlay],
+    [params.overlay]
   )
   const activeOverlays = OVERLAY_DEFS.filter((d) => overlayKeys.has(d.key))
   const toggleOverlay = (key: OverlayKey) => {
@@ -777,14 +773,14 @@ function CollectionPage() {
   const filters: Filters = useMemo(
     () =>
       Object.fromEntries(
-        FILTER_DEFS.map((d) => [d.key, params[d.key] ?? ANY]),
+        FILTER_DEFS.map((d) => [d.key, params[d.key] ?? ANY])
       ) as Filters,
-    [params],
+    [params]
   )
 
   /** Merge a partial state change into the URL (replace — no history spam). */
   const setParams = (
-    patch: Partial<Record<keyof z.infer<typeof searchSchema>, string | null>>,
+    patch: Partial<Record<keyof z.infer<typeof searchSchema>, string | null>>
   ) => {
     navigate({
       search: (prev) => {
@@ -834,14 +830,14 @@ function CollectionPage() {
         counts.set(value, (counts.get(value) ?? 0) + 1)
       }
       result[def.key] = [...counts.entries()].sort((a, b) =>
-        a[0].localeCompare(b[0], undefined, { numeric: true }),
+        a[0].localeCompare(b[0], undefined, { numeric: true })
       )
     }
     return result
   }, [films])
 
   const activeFilterCount = FILTER_DEFS.filter(
-    (d) => filters[d.key] !== ANY,
+    (d) => filters[d.key] !== ANY
   ).length
 
   const visible = useMemo(() => {
@@ -919,7 +915,7 @@ function CollectionPage() {
               }
             >
               <span className="truncate">{SORT_LABELS[sort]}</span>
-              <span aria-hidden className="text-muted-foreground text-xs">
+              <span aria-hidden className="text-xs text-muted-foreground">
                 {effectiveDir === "asc" ? "▲" : "▼"}
               </span>
             </DropdownMenuTrigger>
@@ -939,7 +935,7 @@ function CollectionPage() {
                       </span>
                     )}
                   </DropdownMenuItem>
-                ),
+                )
               )}
             </DropdownMenuContent>
           </DropdownMenu>
@@ -954,7 +950,7 @@ function CollectionPage() {
             >
               {view === "list" ? "Columns" : "Poster info"}
               {activeOverlays.length > 0 && (
-                <span className="bg-lb-green rounded-full px-1.5 text-xs font-bold text-[#07130b] tabular-nums">
+                <span className="rounded-full bg-lb-green px-1.5 text-xs font-bold text-[#07130b] tabular-nums">
                   {activeOverlays.length}
                 </span>
               )}
@@ -980,7 +976,7 @@ function CollectionPage() {
               aria-pressed={view === "grid"}
               className={cn(
                 "rounded-r-none",
-                view === "grid" && "bg-secondary",
+                view === "grid" && "bg-secondary"
               )}
               onClick={() => setParams({ view: null })}
             >
@@ -993,7 +989,7 @@ function CollectionPage() {
               aria-pressed={view === "list"}
               className={cn(
                 "rounded-l-none",
-                view === "list" && "bg-secondary",
+                view === "list" && "bg-secondary"
               )}
               onClick={() => setParams({ view: "list" })}
             >
@@ -1042,7 +1038,7 @@ function CollectionPage() {
                         : `Set ${saved.name} as default view`
                     }
                     title={saved.isDefault ? "Default view" : "Make default"}
-                    className="text-muted-foreground hover:text-foreground shrink-0"
+                    className="shrink-0 text-muted-foreground hover:text-foreground"
                     onClick={(e) => {
                       e.stopPropagation()
                       toggleDefaultView(saved.name)
@@ -1051,7 +1047,7 @@ function CollectionPage() {
                     <Star
                       className={cn(
                         "size-3.5",
-                        saved.isDefault && "fill-lb-orange text-lb-orange",
+                        saved.isDefault && "fill-lb-orange text-lb-orange"
                       )}
                     />
                   </button>
@@ -1059,7 +1055,7 @@ function CollectionPage() {
                     type="button"
                     aria-label={`Delete view ${saved.name}`}
                     title="Delete view"
-                    className="text-muted-foreground hover:text-destructive shrink-0"
+                    className="shrink-0 text-muted-foreground hover:text-destructive"
                     onClick={(e) => {
                       e.stopPropagation()
                       deleteView(saved.name)
@@ -1110,16 +1106,13 @@ function CollectionPage() {
             <label className="flex items-center justify-between gap-3 text-sm">
               <span>
                 Set as default view
-                <span className="text-muted-foreground block text-xs">
+                <span className="block text-xs text-muted-foreground">
                   Loaded whenever you open the collection fresh.
                 </span>
               </span>
-              <Switch
-                checked={viewDefault}
-                onCheckedChange={setViewDefault}
-              />
+              <Switch checked={viewDefault} onCheckedChange={setViewDefault} />
             </label>
-            <p className="text-muted-foreground text-xs">
+            <p className="text-xs text-muted-foreground">
               Saves the current search, filters, sort, poster info, and
               grid/list choice. Reusing a name overwrites that view.
             </p>
@@ -1148,7 +1141,7 @@ function CollectionPage() {
       <div
         role="group"
         aria-label="Filter by media type"
-        className="bg-secondary/50 flex w-fit gap-0.5 rounded-lg border p-0.5"
+        className="flex w-fit gap-0.5 rounded-lg border bg-secondary/50 p-0.5"
       >
         {(
           [
@@ -1166,7 +1159,7 @@ function CollectionPage() {
               "rounded-md px-3 py-1 text-sm font-medium transition-colors",
               typeFilter === key
                 ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
             {label}
@@ -1175,7 +1168,7 @@ function CollectionPage() {
       </div>
 
       {filtersOpen && (
-        <div className="bg-card space-y-3 rounded-lg border p-4">
+        <div className="space-y-3 rounded-lg border bg-card p-4">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {FILTER_DEFS.map((def) => (
               <FilterSelect
@@ -1183,15 +1176,13 @@ function CollectionPage() {
                 label={def.label}
                 value={filters[def.key]}
                 options={filterOptions[def.key]}
-                onChange={(value) =>
-                  setParams({ [def.key]: value })
-                }
+                onChange={(value) => setParams({ [def.key]: value })}
               />
             ))}
           </div>
           {activeFilterCount > 0 && (
             <div className="flex items-center justify-between gap-2">
-              <p className="text-muted-foreground text-xs">
+              <p className="text-xs text-muted-foreground">
                 {visible.length} title{visible.length === 1 ? "" : "s"} match
               </p>
               <Button
@@ -1200,7 +1191,7 @@ function CollectionPage() {
                 className="gap-1.5"
                 onClick={() =>
                   setParams(
-                    Object.fromEntries(FILTER_DEFS.map((d) => [d.key, null])),
+                    Object.fromEntries(FILTER_DEFS.map((d) => [d.key, null]))
                   )
                 }
               >
@@ -1265,7 +1256,7 @@ function CollectionPage() {
           </EmptyHeader>
         </Empty>
       ) : view === "list" ? (
-        <div className="divide-border/60 divide-y rounded-lg border">
+        <div className="divide-y divide-border/60 rounded-lg border">
           <ListHeader
             columns={activeOverlays}
             sort={sort}

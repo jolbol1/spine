@@ -19,7 +19,7 @@ describe("the production container entrypoint", () => {
 
     expect(result.status).not.toBe(0)
     expect(`${result.stdout}${result.stderr}`).toContain(
-      "BETTER_AUTH_SECRET is required",
+      "BETTER_AUTH_SECRET is required"
     )
   })
 
@@ -34,12 +34,12 @@ describe("the production container entrypoint", () => {
         cwd: process.cwd(),
         encoding: "utf8",
         env,
-      },
+      }
     )
 
     expect(result.status).not.toBe(0)
     expect(`${result.stdout}${result.stderr}`).toContain(
-      "BETTER_AUTH_SECRET is required",
+      "BETTER_AUTH_SECRET is required"
     )
   })
 })

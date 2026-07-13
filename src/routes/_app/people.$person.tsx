@@ -56,8 +56,7 @@ function PersonPage() {
   // Cast credits carry the TMDB person id; directors resolve by name search.
   const external = useQuery({
     queryKey: ["person-imdb", person, tmdbPersonId],
-    queryFn: () =>
-      getPersonImdbFn({ data: { name: person, tmdbPersonId } }),
+    queryFn: () => getPersonImdbFn({ data: { name: person, tmdbPersonId } }),
     enabled: inCollection,
     staleTime: Infinity,
   })
@@ -86,7 +85,7 @@ function PersonPage() {
             className="size-16 rounded-full object-cover"
           />
         ) : (
-          <span className="bg-secondary flex size-16 items-center justify-center rounded-full text-lg font-bold">
+          <span className="flex size-16 items-center justify-center rounded-full bg-secondary text-lg font-bold">
             {person
               .split(" ")
               .map((part) => part[0])
@@ -96,7 +95,7 @@ function PersonPage() {
         )}
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{person}</h1>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             {[
               directed.length > 0 &&
                 `directed ${directed.length} title${directed.length === 1 ? "" : "s"}`,
@@ -128,7 +127,7 @@ function PersonPage() {
 
       {directed.length > 0 && (
         <section>
-          <h2 className="text-muted-foreground mb-4 flex items-center gap-2 text-xs font-semibold tracking-[0.14em] uppercase">
+          <h2 className="mb-4 flex items-center gap-2 text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
             <Clapperboard className="size-4" /> Directed
           </h2>
           <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
@@ -141,7 +140,7 @@ function PersonPage() {
 
       {acted.length > 0 && (
         <section>
-          <h2 className="text-muted-foreground mb-4 flex items-center gap-2 text-xs font-semibold tracking-[0.14em] uppercase">
+          <h2 className="mb-4 flex items-center gap-2 text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
             <Users className="size-4" /> Acted in
           </h2>
           <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
@@ -149,7 +148,7 @@ function PersonPage() {
               <div key={film.id}>
                 <FilmCard film={film} />
                 {character && (
-                  <p className="text-muted-foreground mt-0.5 truncate px-0.5 text-xs">
+                  <p className="mt-0.5 truncate px-0.5 text-xs text-muted-foreground">
                     as {character}
                   </p>
                 )}
@@ -159,7 +158,7 @@ function PersonPage() {
         </section>
       )}
 
-      <p className="text-muted-foreground text-xs">
+      <p className="text-xs text-muted-foreground">
         Showing titles from your collection only.{" "}
         <Link to="/" className="text-lb-blue hover:underline">
           Back to the shelf

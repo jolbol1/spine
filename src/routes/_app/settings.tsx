@@ -19,10 +19,7 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { settingsQuery } from "@/lib/queries"
 import { syncCriterionSpinesFn } from "@/server/criterion"
-import {
-  syncLetterboxdFn,
-  syncLetterboxdHistoryFn,
-} from "@/server/letterboxd"
+import { syncLetterboxdFn, syncLetterboxdHistoryFn } from "@/server/letterboxd"
 import { syncRottenTomatoesFn } from "@/server/rottentomatoes"
 import { saveSettingsFn } from "@/server/settings"
 import { syncTmdbCastFn, syncTmdbDetailsFn } from "@/server/tmdb"
@@ -80,7 +77,7 @@ function SettingsPage() {
       toast.success(
         result.matched > 0
           ? `Full history synced — ${result.matched} title${result.matched === 1 ? "" : "s"} matched (${result.filmsSeen} films across ${result.pages} page${result.pages === 1 ? "" : "s"})${result.reviews > 0 ? `, ${result.reviews} review${result.reviews === 1 ? "" : "s"} pulled in` : ""}`
-          : `Full history synced — no new matches (${result.filmsSeen} films checked)`,
+          : `Full history synced — no new matches (${result.filmsSeen} films checked)`
       )
     },
     onError: () => toast.error("History sync failed"),
@@ -97,7 +94,7 @@ function SettingsPage() {
       toast.success(
         result.scanned === 0
           ? "All films already have cast data"
-          : `Cast fetched for ${result.updated} of ${result.scanned} film${result.scanned === 1 ? "" : "s"}${result.unmatched > 0 ? ` (${result.unmatched} had no TMDB match)` : ""}`,
+          : `Cast fetched for ${result.updated} of ${result.scanned} film${result.scanned === 1 ? "" : "s"}${result.unmatched > 0 ? ` (${result.unmatched} had no TMDB match)` : ""}`
       )
     },
     onError: () => toast.error("TMDB sync failed"),
@@ -114,7 +111,7 @@ function SettingsPage() {
       toast.success(
         result.scanned === 0
           ? "All films already have TMDB details"
-          : `Details fetched for ${result.updated} of ${result.scanned} film${result.scanned === 1 ? "" : "s"}${result.unmatched > 0 ? ` (${result.unmatched} had no TMDB match)` : ""}`,
+          : `Details fetched for ${result.updated} of ${result.scanned} film${result.scanned === 1 ? "" : "s"}${result.unmatched > 0 ? ` (${result.unmatched} had no TMDB match)` : ""}`
       )
     },
     onError: () => toast.error("TMDB details sync failed"),
@@ -127,7 +124,7 @@ function SettingsPage() {
       toast.success(
         result.scanned === 0
           ? "All films already have Rotten Tomatoes scores"
-          : `Scores fetched for ${result.updated} of ${result.scanned} film${result.scanned === 1 ? "" : "s"}${result.unmatched > 0 ? ` (${result.unmatched} had no match)` : ""}`,
+          : `Scores fetched for ${result.updated} of ${result.scanned} film${result.scanned === 1 ? "" : "s"}${result.unmatched > 0 ? ` (${result.unmatched} had no match)` : ""}`
       )
     },
     onError: () => toast.error("Rotten Tomatoes sync failed"),
@@ -144,7 +141,7 @@ function SettingsPage() {
       toast.success(
         result.scanned === 0
           ? `All Criterion titles already have spine numbers (list has ${result.listSize} entries)`
-          : `Spine numbers filled for ${result.updated} of ${result.scanned} Criterion title${result.scanned === 1 ? "" : "s"}`,
+          : `Spine numbers filled for ${result.updated} of ${result.scanned} Criterion title${result.scanned === 1 ? "" : "s"}`
       )
     },
     onError: () => toast.error("Spine sync failed"),
@@ -228,9 +225,7 @@ function SettingsPage() {
             <Button
               variant="secondary"
               className="shrink-0 gap-2"
-              disabled={
-                historySync.isPending || !settings?.letterboxdUsername
-              }
+              disabled={historySync.isPending || !settings?.letterboxdUsername}
               onClick={() => historySync.mutate()}
             >
               {historySync.isPending ? (
@@ -248,15 +243,15 @@ function SettingsPage() {
         <CardHeader>
           <CardTitle>TMDB data</CardTitle>
           <CardDescription>
-            Cast and title details (genres, studios, countries, box office,
-            IMDb links) are fetched automatically from TMDB when you add a
-            film. Run the backfills for films added before TMDB was
-            configured — they power the people pages and most stats.
+            Cast and title details (genres, studios, countries, box office, IMDb
+            links) are fetched automatically from TMDB when you add a film. Run
+            the backfills for films added before TMDB was configured — they
+            power the people pages and most stats.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between gap-4">
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               Requires <code>TMDB_API_KEY</code> in <code>.env</code>.
             </p>
             <Button
@@ -274,9 +269,9 @@ function SettingsPage() {
             </Button>
           </div>
           <div className="flex items-center justify-between gap-4 border-t pt-4">
-            <p className="text-muted-foreground text-sm">
-              Genres, production companies, countries, budget &amp; box
-              office, franchise, and the film's IMDb id.
+            <p className="text-sm text-muted-foreground">
+              Genres, production companies, countries, budget &amp; box office,
+              franchise, and the film's IMDb id.
             </p>
             <Button
               variant="secondary"
@@ -300,14 +295,14 @@ function SettingsPage() {
           <CardTitle>Rotten Tomatoes scores</CardTitle>
           <CardDescription>
             Critic and audience scores are scraped from rottentomatoes.com
-            (there's no public API) when you add a film. Run a backfill for
-            the rest — titles that don't match are skipped on later runs, but
-            each film page has a refresh button to retry one.
+            (there's no public API) when you add a film. Run a backfill for the
+            rest — titles that don't match are skipped on later runs, but each
+            film page has a refresh button to retry one.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between gap-4">
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               Roughly a second per film — large collections take a while.
             </p>
             <Button
@@ -331,14 +326,14 @@ function SettingsPage() {
         <CardHeader>
           <CardTitle>Criterion spine numbers</CardTitle>
           <CardDescription>
-            Spine numbers come from criterion.com's release list and are
-            filled automatically when you add a film with a Criterion label.
-            Run a backfill for titles added before, or after new releases.
+            Spine numbers come from criterion.com's release list and are filled
+            automatically when you add a film with a Criterion label. Run a
+            backfill for titles added before, or after new releases.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between gap-4">
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               Applies to films whose publisher contains "Criterion".
             </p>
             <Button

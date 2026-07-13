@@ -31,7 +31,7 @@ function looksLikeUrl(value: string): boolean {
  * scraper (title/price/cover — TMDB fills the rest on add).
  */
 async function importFromUrl(
-  raw: string,
+  raw: string
 ): Promise<
   | { ok: true; values: FilmFormValues; source: string }
   | { ok: false; error: string }
@@ -110,9 +110,7 @@ export function BlurayImportBox({
         // Imports don't know the barcode that was just scanned — keep it.
         barcode: result.values.barcode || scannedCode || "",
       })
-      toast.success(
-        `Imported “${result.values.title}” from ${result.source}`,
-      )
+      toast.success(`Imported “${result.values.title}” from ${result.source}`)
     },
     onError: () => toast.error("Import failed"),
   })
@@ -155,7 +153,7 @@ export function BlurayImportBox({
         case "miss":
           onImport({ ...emptyFilmValues, barcode: code })
           toast.info(
-            `No match for ${code} anywhere — barcode filled in, add the rest by hand.`,
+            `No match for ${code} anywhere — barcode filled in, add the rest by hand.`
           )
       }
     },
@@ -228,9 +226,9 @@ export function BlurayImportBox({
       >
         <div className="relative flex-1">
           {isUrl ? (
-            <Link2 className="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+            <Link2 className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           ) : (
-            <Search className="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+            <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           )}
           <Input
             value={value}
@@ -241,7 +239,7 @@ export function BlurayImportBox({
             aria-label="Search Blu-ray.com or paste a product link"
           />
           {(searching || importUrl.isPending || scanLookup.isPending) && (
-            <Loader2 className="text-muted-foreground absolute top-1/2 right-2.5 size-4 -translate-y-1/2 animate-spin" />
+            <Loader2 className="absolute top-1/2 right-2.5 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
           )}
         </div>
         <Button
@@ -262,10 +260,10 @@ export function BlurayImportBox({
       </form>
 
       {scanStage && (
-        <p className="text-muted-foreground mt-2 flex items-center gap-2 text-sm">
+        <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="size-3.5 animate-spin" />
           {scannedCode && (
-            <span className="text-foreground font-mono">{scannedCode}</span>
+            <span className="font-mono text-foreground">{scannedCode}</span>
           )}
           {scanStage}
         </p>
@@ -278,15 +276,15 @@ export function BlurayImportBox({
       />
 
       {open && !isUrl && webMatches.length > 0 && (
-        <ul className="bg-popover absolute z-30 mt-1 max-h-96 w-full overflow-y-auto rounded-md border shadow-xl">
-          <li className="text-muted-foreground px-3 pt-2 pb-1 text-[11px] font-semibold tracking-[0.12em] uppercase">
+        <ul className="absolute z-30 mt-1 max-h-96 w-full overflow-y-auto rounded-md border bg-popover shadow-xl">
+          <li className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
             Best matches from a web search — check the year
           </li>
           {webMatches.map((match) => (
             <li key={`${match.mediaType}-${match.tmdbId}`}>
               <button
                 type="button"
-                className="hover:bg-accent flex w-full items-center gap-3 px-3 py-2 text-left transition-colors"
+                className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-accent"
                 onClick={() => {
                   setOpen(false)
                   setWebMatches([])
@@ -305,14 +303,14 @@ export function BlurayImportBox({
                     src={match.posterUrl}
                     alt=""
                     loading="lazy"
-                    className="bg-secondary h-14 w-10 shrink-0 rounded-sm object-cover"
+                    className="h-14 w-10 shrink-0 rounded-sm bg-secondary object-cover"
                   />
                 ) : (
-                  <span className="bg-secondary h-14 w-10 shrink-0 rounded-sm" />
+                  <span className="h-14 w-10 shrink-0 rounded-sm bg-secondary" />
                 )}
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm">{match.title}</span>
-                  <span className="text-muted-foreground block text-xs">
+                  <span className="block text-xs text-muted-foreground">
                     {[match.year, match.mediaType === "tv" ? "TV" : "Movie"]
                       .filter(Boolean)
                       .join(" · ")}
@@ -325,26 +323,24 @@ export function BlurayImportBox({
       )}
 
       {open && !isUrl && results.length > 0 && (
-        <ul className="bg-popover absolute z-30 mt-1 max-h-96 w-full overflow-y-auto rounded-md border shadow-xl">
+        <ul className="absolute z-30 mt-1 max-h-96 w-full overflow-y-auto rounded-md border bg-popover shadow-xl">
           {results.map((result) => (
             <li key={result.url}>
               <button
                 type="button"
                 disabled={importUrl.isPending}
-                className="hover:bg-accent flex w-full items-center gap-3 px-3 py-2 text-left transition-colors disabled:opacity-50"
+                className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-accent disabled:opacity-50"
                 onClick={() => importUrl.mutate(result.url)}
               >
                 <img
                   src={result.coverUrl.replace("_front.jpg", "_small.jpg")}
                   alt=""
                   loading="lazy"
-                  className="bg-secondary h-14 w-10 shrink-0 rounded-sm object-cover"
+                  className="h-14 w-10 shrink-0 rounded-sm bg-secondary object-cover"
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm">
-                    {result.title}
-                  </span>
-                  <span className="text-muted-foreground block text-xs">
+                  <span className="block truncate text-sm">{result.title}</span>
+                  <span className="block text-xs text-muted-foreground">
                     {[result.year, result.releaseDate]
                       .filter(Boolean)
                       .join(" · ")}

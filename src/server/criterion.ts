@@ -12,7 +12,7 @@ export const lookupSpineFn = createServerFn({ method: "POST" })
     z.object({
       title: z.string().trim().min(1).max(500),
       year: z.number().int().nullable(),
-    }),
+    })
   )
   .handler(async ({ data }) => {
     const cache = await refreshCacheIfStale()
@@ -38,9 +38,9 @@ export const syncCriterionSpinesFn = createServerFn({ method: "POST" })
         .where(
           and(
             isNull(films.spineNumber),
-            like(sql`lower(${films.label})`, "%criterion%"),
-          ),
-        ),
+            like(sql`lower(${films.label})`, "%criterion%")
+          )
+        )
     )
 
     let updated = 0
@@ -51,7 +51,7 @@ export const syncCriterionSpinesFn = createServerFn({ method: "POST" })
         tx
           .update(films)
           .set({ spineNumber: spine, updatedAt: new Date() })
-          .where(eq(films.id, film.id)),
+          .where(eq(films.id, film.id))
       )
       updated++
     }

@@ -7,7 +7,7 @@ import { CollectionSearch } from "@/components/collection-search"
 describe("CollectionSearch", () => {
   it("reflects a new search value supplied by URL navigation", () => {
     const { rerender } = render(
-      <CollectionSearch query="alien" onQueryChange={vi.fn()} />,
+      <CollectionSearch query="alien" onQueryChange={vi.fn()} />
     )
 
     rerender(<CollectionSearch query="dune" onQueryChange={vi.fn()} />)

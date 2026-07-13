@@ -4,7 +4,7 @@ interface TmdbTitleIdentity {
 }
 
 export function dedupeTmdbTitleMatches<TMatch extends TmdbTitleIdentity>(
-  matches: readonly TMatch[],
+  matches: readonly TMatch[]
 ): TMatch[] {
   const seen = new Set<string>()
   return matches.filter((match) => {

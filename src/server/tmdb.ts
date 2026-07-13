@@ -74,14 +74,14 @@ interface TmdbDetailPayload {
 function parseCertification(detail: TmdbDetailPayload): string | null {
   for (const country of ["GB", "US"]) {
     const release = detail.release_dates?.results?.find(
-      (r) => r.iso_3166_1 === country,
+      (r) => r.iso_3166_1 === country
     )
     const cert = release?.release_dates?.find(
-      (d) => d.certification,
+      (d) => d.certification
     )?.certification
     if (cert) return cert
     const rating = detail.content_ratings?.results?.find(
-      (r) => r.iso_3166_1 === country,
+      (r) => r.iso_3166_1 === country
     )?.rating
     if (rating) return rating
   }
@@ -98,14 +98,14 @@ const parseCast = (credits: TmdbCredits): CastMember[] =>
 
 const parseDirectors = (
   credits: TmdbCredits,
-  mediaType: "movie" | "tv",
+  mediaType: "movie" | "tv"
 ): string[] =>
   mediaType === "movie"
     ? [
         ...new Set(
           (credits.crew ?? [])
             .filter((member) => member.job === "Director")
-            .map((member) => member.name),
+            .map((member) => member.name)
         ),
       ]
     : []
@@ -134,14 +134,13 @@ const certificationAppend = (mediaType: "movie" | "tv") =>
  */
 export async function fetchTmdbById(
   tmdbId: number,
-  hint?: "movie" | "tv" | null,
+  hint?: "movie" | "tv" | null
 ): Promise<TmdbMatch | null> {
   if (!env.TMDB_API_KEY) return null
   const types: Array<"movie" | "tv"> = hint ? [hint] : ["movie", "tv"]
   for (const mediaType of types) {
     try {
-      const credits =
-        mediaType === "tv" ? "aggregate_credits" : "credits"
+      const credits = mediaType === "tv" ? "aggregate_credits" : "credits"
       const res = await tmdbFetch(`/${mediaType}/${tmdbId}`, {
         append_to_response: `${credits},external_ids,${certificationAppend(mediaType)}`,
       })
@@ -177,7 +176,7 @@ export async function fetchTmdbById(
  */
 export async function fetchTmdbDetails(
   tmdbId: number,
-  mediaType: "movie" | "tv",
+  mediaType: "movie" | "tv"
 ): Promise<TmdbDetails | null> {
   if (!env.TMDB_API_KEY) return null
   try {
@@ -199,7 +198,7 @@ export async function fetchTmdbDetails(
  */
 export async function fetchTmdbCast(
   title: string,
-  year: number | null,
+  year: number | null
 ): Promise<TmdbMatch | null> {
   if (!env.TMDB_API_KEY) return null
 
@@ -220,7 +219,7 @@ export async function fetchTmdbCast(
     }
 
     const candidates = (search.results ?? []).filter(
-      (r) => r.media_type === "movie" || r.media_type === "tv",
+      (r) => r.media_type === "movie" || r.media_type === "tv"
     )
     if (candidates.length === 0) return null
 
@@ -272,7 +271,7 @@ export interface TmdbTitleMatch {
 /** Straight TMDB title search — canonical matches for fuzzy web results. */
 export async function searchTmdbTitles(
   query: string,
-  limit = 5,
+  limit = 5
 ): Promise<TmdbTitleMatch[]> {
   if (!env.TMDB_API_KEY) return []
   try {
@@ -336,7 +335,7 @@ export const syncTmdbCastFn = createServerFn({ method: "POST" })
           tmdbMediaType: films.tmdbMediaType,
         })
         .from(films)
-        .where(isNull(films.tmdbCast)),
+        .where(isNull(films.tmdbCast))
     )
 
     let updated = 0
@@ -347,7 +346,7 @@ export const syncTmdbCastFn = createServerFn({ method: "POST" })
       const result = film.tmdbId
         ? await fetchTmdbById(
             film.tmdbId,
-            film.tmdbMediaType === "tv" ? "tv" : "movie",
+            film.tmdbMediaType === "tv" ? "tv" : "movie"
           )
         : await fetchTmdbCast(film.title, film.year)
       if (result) {
@@ -361,7 +360,7 @@ export const syncTmdbCastFn = createServerFn({ method: "POST" })
               tmdbDetails: result.details,
               updatedAt: new Date(),
             })
-            .where(eq(films.id, film.id)),
+            .where(eq(films.id, film.id))
         )
         updated++
       } else {
@@ -398,7 +397,7 @@ export const syncTmdbDetailsFn = createServerFn({ method: "POST" })
           tmdbMediaType: films.tmdbMediaType,
         })
         .from(films)
-        .where(isNull(films.tmdbDetails)),
+        .where(isNull(films.tmdbDetails))
     )
 
     let updated = 0
@@ -408,7 +407,7 @@ export const syncTmdbDetailsFn = createServerFn({ method: "POST" })
       if (film.tmdbId != null) {
         const details = await fetchTmdbDetails(
           film.tmdbId,
-          film.tmdbMediaType === "tv" ? "tv" : "movie",
+          film.tmdbMediaType === "tv" ? "tv" : "movie"
         )
         if (details) patch = { tmdbDetails: details }
       } else {
@@ -428,7 +427,7 @@ export const syncTmdbDetailsFn = createServerFn({ method: "POST" })
           tx
             .update(films)
             .set({ ...patch, updatedAt: new Date() })
-            .where(eq(films.id, film.id)),
+            .where(eq(films.id, film.id))
         )
         updated++
       } else {
@@ -466,7 +465,7 @@ export const rematchTmdbFn = createServerFn({ method: "POST" })
         })
         .from(films)
         .where(eq(films.id, data.id))
-        .limit(1),
+        .limit(1)
     )
     const film = rows.at(0)
     if (!film) return { ok: false as const, error: "Film not found." }
@@ -474,7 +473,7 @@ export const rematchTmdbFn = createServerFn({ method: "POST" })
     const result = film.tmdbId
       ? await fetchTmdbById(
           film.tmdbId,
-          film.tmdbMediaType === "tv" ? "tv" : "movie",
+          film.tmdbMediaType === "tv" ? "tv" : "movie"
         )
       : await fetchTmdbCast(film.title, film.year)
     if (!result) {
@@ -493,7 +492,7 @@ export const rematchTmdbFn = createServerFn({ method: "POST" })
           tmdbDetails: result.details,
           updatedAt: new Date(),
         })
-        .where(eq(films.id, film.id)),
+        .where(eq(films.id, film.id))
     )
     return { ok: true as const, castCount: result.cast.length }
   })
@@ -508,7 +507,7 @@ export const getPersonImdbFn = createServerFn({ method: "GET" })
     z.object({
       name: z.string().trim().min(1).max(300),
       tmdbPersonId: z.number().int().positive().nullish(),
-    }),
+    })
   )
   .handler(async ({ data }) => {
     if (!env.TMDB_API_KEY) return { imdbId: null, tmdbPersonId: null }
@@ -526,7 +525,7 @@ export const getPersonImdbFn = createServerFn({ method: "GET" })
         const norm = (s: string) => s.trim().toLowerCase()
         const match =
           (search.results ?? []).find(
-            (r) => norm(r.name) === norm(data.name),
+            (r) => norm(r.name) === norm(data.name)
           ) ?? search.results?.[0]
         personId = match?.id ?? null
       }

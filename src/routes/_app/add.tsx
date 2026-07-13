@@ -102,9 +102,9 @@ function AddFilmPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Add a film</h1>
-        <p className="text-muted-foreground text-sm">
-          Search Blu-ray.com, paste a product link, or scan the disc's
-          barcode to import the full details — or fill the form in by hand.
+        <p className="text-sm text-muted-foreground">
+          Search Blu-ray.com, paste a product link, or scan the disc's barcode
+          to import the full details — or fill the form in by hand.
         </p>
       </div>
       <BlurayImportBox
@@ -112,7 +112,7 @@ function AddFilmPage() {
         autoOpenScanner={prefill.scan != null}
       />
       {(autoImport.isPending || cexImport.isPending) && (
-        <p className="text-muted-foreground flex items-center gap-2 text-sm">
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" />
           Importing full disc details from{" "}
           {cexImport.isPending ? "CEX" : "Blu-ray.com"}…

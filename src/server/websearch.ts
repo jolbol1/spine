@@ -21,7 +21,7 @@ function cleanWebTitle(raw: string): string {
     .replace(/\([^)]*\)/g, " ")
     .replace(
       /\b(DVD|Blu-?ray|4K|UHD|VHS|Widescreen|Full ?Screen|Special Edition|New|Sealed|Movie|Film|Import)\b/gi,
-      " ",
+      " "
     )
     .replace(/\s+/g, " ")
     .trim()

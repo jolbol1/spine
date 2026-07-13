@@ -112,7 +112,7 @@ export function BarcodeScanDialog({
         <DialogHeader>
           <DialogTitle>Scan a barcode</DialogTitle>
         </DialogHeader>
-        <div className="bg-secondary relative aspect-video w-full overflow-hidden rounded-md">
+        <div className="relative aspect-video w-full overflow-hidden rounded-md bg-secondary">
           <video
             ref={videoRef}
             playsInline
@@ -121,11 +121,11 @@ export function BarcodeScanDialog({
           />
           {cameraState === "starting" && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <Loader2 className="text-muted-foreground size-8 animate-spin" />
+              <Loader2 className="size-8 animate-spin text-muted-foreground" />
             </div>
           )}
           {cameraState === "active" && (
-            <div className="border-lb-green/80 pointer-events-none absolute inset-x-[12%] top-1/2 h-24 -translate-y-1/2 rounded-lg border-2 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+            <div className="pointer-events-none absolute inset-x-[12%] top-1/2 h-24 -translate-y-1/2 rounded-lg border-2 border-lb-green/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
           )}
           {cameraState === "denied" && (
             <div className="absolute inset-0 flex items-center justify-center p-4">
@@ -133,8 +133,8 @@ export function BarcodeScanDialog({
                 <CameraOff className="size-4" />
                 <AlertTitle>Camera unavailable</AlertTitle>
                 <AlertDescription>
-                  Permission was denied or no camera was found. Type the
-                  barcode into the search box instead.
+                  Permission was denied or no camera was found. Type the barcode
+                  into the search box instead.
                 </AlertDescription>
               </Alert>
             </div>
@@ -145,9 +145,9 @@ export function BarcodeScanDialog({
             <Camera className="size-4" /> Try again
           </Button>
         )}
-        <p className="text-muted-foreground text-xs">
-          Point the camera at the disc's UPC/EAN barcode. Matches are looked
-          up on Blu-ray.com, then CEX, then the web.
+        <p className="text-xs text-muted-foreground">
+          Point the camera at the disc's UPC/EAN barcode. Matches are looked up
+          on Blu-ray.com, then CEX, then the web.
         </p>
       </DialogContent>
     </Dialog>

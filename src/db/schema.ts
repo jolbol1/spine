@@ -244,7 +244,7 @@ export const criterionSpines = pgTable(
     year: integer("year"),
     fetchedAt: timestamp("fetched_at").notNull().defaultNow(),
   },
-  (t) => [index("criterion_spines_title_idx").on(t.normalizedTitle)],
+  (t) => [index("criterion_spines_title_idx").on(t.normalizedTitle)]
 )
 
 export type Film = typeof films.$inferSelect

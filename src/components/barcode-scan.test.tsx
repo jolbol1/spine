@@ -30,11 +30,7 @@ describe("BarcodeScanDialog", () => {
     })
 
     const { rerender } = render(
-      <BarcodeScanDialog
-        open
-        onOpenChange={vi.fn()}
-        onDetected={vi.fn()}
-      />,
+      <BarcodeScanDialog open onOpenChange={vi.fn()} onDetected={vi.fn()} />
     )
 
     await act(async () => {
@@ -46,7 +42,7 @@ describe("BarcodeScanDialog", () => {
         open={false}
         onOpenChange={vi.fn()}
         onDetected={vi.fn()}
-      />,
+      />
     )
 
     await act(async () => {

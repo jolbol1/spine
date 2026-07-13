@@ -9,7 +9,7 @@ export function FormatBadge({ format }: { format: string }) {
     <span
       className={cn(
         "rounded-sm px-1 py-px text-[9px] font-bold tracking-wide uppercase",
-        formatBadgeClass(format),
+        formatBadgeClass(format)
       )}
     >
       {format}
@@ -102,7 +102,7 @@ export function FilmCard({
           {film.year != null && <span>{film.year}</span>}
           <FormatBadge format={film.format} />
           {subtext && (
-            <span className="text-foreground ml-auto font-medium tabular-nums">
+            <span className="ml-auto font-medium text-foreground tabular-nums">
               {subtext}
             </span>
           )}

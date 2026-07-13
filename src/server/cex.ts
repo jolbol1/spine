@@ -61,7 +61,7 @@ export const importCexFn = createServerFn({ method: "POST" })
         {
           headers: { "User-Agent": "Mozilla/5.0 (Spine collection tracker)" },
           signal: AbortSignal.timeout(15_000),
-        },
+        }
       )
       if (!res.ok) {
         return {

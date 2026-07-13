@@ -45,12 +45,12 @@ interface SearchRow {
 function parseSearchRows(html: string): SearchRow[] {
   const rows: SearchRow[] = []
   const blocks = html.match(
-    /<search-page-media-row[\s\S]*?<\/search-page-media-row>/g,
+    /<search-page-media-row[\s\S]*?<\/search-page-media-row>/g
   )
   for (const block of blocks ?? []) {
     const anchor =
       /<a[^>]+href="(https:\/\/www\.rottentomatoes\.com\/(m|tv)\/[^"/]+)"[^>]*slot="title"[^>]*>([\s\S]*?)<\/a>/.exec(
-        block,
+        block
       )
     if (!anchor) continue
     const year = /release-year="(\d{4})"/.exec(block)
@@ -68,16 +68,16 @@ function parseSearchRows(html: string): SearchRow[] {
 async function searchRtUrl(
   title: string,
   year: number | null,
-  mediaType: "movie" | "tv" | null,
+  mediaType: "movie" | "tv" | null
 ): Promise<string | null> {
   const page = await fetchPageWithFallback(
-    `https://www.rottentomatoes.com/search?search=${encodeURIComponent(title)}`,
+    `https://www.rottentomatoes.com/search?search=${encodeURIComponent(title)}`
   )
   if (!page.ok) return null
 
   const want = normTitle(title)
   const rows = parseSearchRows(page.html).filter(
-    (r) => mediaType == null || r.mediaType === mediaType,
+    (r) => mediaType == null || r.mediaType === mediaType
   )
   const yearClose = (r: SearchRow) =>
     year != null && r.year != null && Math.abs(r.year - year) <= 1
@@ -142,7 +142,7 @@ function extractScoreObject(html: string, key: string): number | null {
 export async function fetchRtScores(
   title: string,
   year: number | null,
-  mediaType: "movie" | "tv" | null,
+  mediaType: "movie" | "tv" | null
 ): Promise<RtResult | null> {
   const url = await searchRtUrl(title, year, mediaType)
   if (!url) return null
@@ -172,7 +172,7 @@ export const syncRottenTomatoesFn = createServerFn({ method: "POST" })
           tmdbMediaType: films.tmdbMediaType,
         })
         .from(films)
-        .where(isNull(films.rtSyncedAt)),
+        .where(isNull(films.rtSyncedAt))
     )
 
     let updated = 0
@@ -185,7 +185,7 @@ export const syncRottenTomatoesFn = createServerFn({ method: "POST" })
           ? "tv"
           : film.tmdbMediaType === "movie"
             ? "movie"
-            : null,
+            : null
       )
       await withUser(context.userId, (tx) =>
         tx
@@ -195,7 +195,7 @@ export const syncRottenTomatoesFn = createServerFn({ method: "POST" })
             ...toRtScoreUpdate(result),
             updatedAt: new Date(),
           })
-          .where(eq(films.id, film.id)),
+          .where(eq(films.id, film.id))
       )
       if (result) updated++
       else unmatched++
@@ -221,7 +221,7 @@ export const refreshRtScoresFn = createServerFn({ method: "POST" })
         })
         .from(films)
         .where(eq(films.id, data.id))
-        .limit(1),
+        .limit(1)
     )
     const film = rows.at(0)
     if (!film) return { ok: false as const, error: "Film not found." }
@@ -233,7 +233,7 @@ export const refreshRtScoresFn = createServerFn({ method: "POST" })
         ? "tv"
         : film.tmdbMediaType === "movie"
           ? "movie"
-          : null,
+          : null
     )
     await withUser(context.userId, (tx) =>
       tx
@@ -243,7 +243,7 @@ export const refreshRtScoresFn = createServerFn({ method: "POST" })
           ...toRtScoreUpdate(result),
           updatedAt: new Date(),
         })
-        .where(eq(films.id, film.id)),
+        .where(eq(films.id, film.id))
     )
     if (!result) {
       return {

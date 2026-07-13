@@ -172,7 +172,7 @@ export function FilmForm({
       }
       if (result.spine == null) {
         toast.info(
-          `No Criterion spine found for “${values.title.trim()}” — is it in the Collection?`,
+          `No Criterion spine found for “${values.title.trim()}” — is it in the Collection?`
         )
         return
       }

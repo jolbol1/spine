@@ -36,7 +36,7 @@ function parseList(markdown: string): SpineRow[] {
   const rows: SpineRow[] = []
   for (const line of markdown.split("\n")) {
     const m = line.match(
-      /^\|\s*(\d+)\s*\|[^|]*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|[^|]*\|\s*(\d{4})?\s*\|/,
+      /^\|\s*(\d+)\s*\|[^|]*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|[^|]*\|\s*(\d{4})?\s*\|/
     )
     if (!m) continue
     const title = m[2].replace(/\\/g, "").trim()
@@ -129,7 +129,7 @@ export async function refreshCacheIfStale(): Promise<
           normalizedTitle: normalizeTitle(row.title),
           director: row.director,
           year: row.year,
-        })),
+        }))
       )
     }
   })
@@ -140,7 +140,7 @@ export async function refreshCacheIfStale(): Promise<
 /** Look up a spine number from the cache. Year disambiguates duplicates. */
 export async function lookupSpine(
   title: string,
-  year: number | null,
+  year: number | null
 ): Promise<number | null> {
   const matches = await db
     .select()
@@ -150,7 +150,7 @@ export async function lookupSpine(
   if (matches.length === 0) return null
   if (year != null) {
     const byYear = matches.find(
-      (m) => m.year != null && Math.abs(m.year - year) <= 1,
+      (m) => m.year != null && Math.abs(m.year - year) <= 1
     )
     if (byYear) return byYear.spine
   }

@@ -61,7 +61,7 @@ export const syncLetterboxdFn = createServerFn({ method: "POST" })
     }
 
     const feed = await fetchLetterboxdPage(
-      `https://letterboxd.com/${encodeURIComponent(username)}/rss/`,
+      `https://letterboxd.com/${encodeURIComponent(username)}/rss/`
     )
     if (!feed.ok) {
       return {
@@ -89,8 +89,7 @@ export const syncLetterboxdFn = createServerFn({ method: "POST" })
     // update the rating/review — they just never change the first-watch date.
     const logEntries = items.filter(
       (item) =>
-        item["letterboxd:filmTitle"] != null &&
-        item["letterboxd:watchedDate"],
+        item["letterboxd:filmTitle"] != null && item["letterboxd:watchedDate"]
     )
 
     const collection = await withUser(context.userId, (tx) =>
@@ -124,7 +123,7 @@ export const syncLetterboxdFn = createServerFn({ method: "POST" })
         entryTmdbId != null
           ? collection.filter(
               (film) =>
-                film.tmdbId === entryTmdbId && film.tmdbMediaType !== "tv",
+                film.tmdbId === entryTmdbId && film.tmdbMediaType !== "tv"
             )
           : []
       const targets =
@@ -156,7 +155,7 @@ export const syncLetterboxdFn = createServerFn({ method: "POST" })
         if (!isRewatch && !film.letterboxdWatched) {
           patch.letterboxdWatched = true
           patch.letterboxdWatchedAt = new Date(
-            `${entry["letterboxd:watchedDate"]}T00:00:00Z`,
+            `${entry["letterboxd:watchedDate"]}T00:00:00Z`
           )
           film.letterboxdWatched = true
           matched++
@@ -187,7 +186,6 @@ export const syncLetterboxdFn = createServerFn({ method: "POST" })
       matched,
     }
   })
-
 
 // ---------------------------------------------------------------------------
 // Full-history sync — scrapes letterboxd.com/<user>/diary/ page by page.
@@ -233,14 +231,14 @@ interface DiaryFilm {
 export function parseDiaryPage(
   html: string,
   username: string,
-  entries: Map<string, DiaryFilm>,
+  entries: Map<string, DiaryFilm>
 ): number {
   const rows = html.split(/class="diary-entry-row/).slice(1)
   for (const row of rows) {
     const name = row.match(/data-item-name="([^"]+)"/)?.[1]
     const slug = row.match(/data-item-slug="([^"]+)"/)?.[1]
     const date = row.match(
-      /class="daydate" href="[^"]*\/for\/(\d{4})\/(\d{2})\/(\d{2})\//,
+      /class="daydate" href="[^"]*\/for\/(\d{4})\/(\d{2})\/(\d{2})\//
     )
     if (!name || !slug || !date) continue
 
@@ -249,7 +247,7 @@ export function parseDiaryPage(
     const watched = new Date(`${date[1]}-${date[2]}-${date[3]}T00:00:00Z`)
     const ratingHalf = row.match(/class="rating rated-(\d+)"/)?.[1]
     const reviewHref = row.match(
-      /col-review[^>]*>\s*<a href="([^"]+)"[^>]*icon-review/,
+      /col-review[^>]*>\s*<a href="([^"]+)"[^>]*icon-review/
     )?.[1]
     // Firecrawl's rawHtml rewrites hrefs to absolute URLs; direct
     // fetches keep them relative — handle both.
@@ -268,16 +266,13 @@ export function parseDiaryPage(
       existing.reviewUri ??= reviewUri
     } else {
       entries.set(slug, {
-        title: yearMatch
-          ? decoded.slice(0, yearMatch.index).trim()
-          : decoded,
+        title: yearMatch ? decoded.slice(0, yearMatch.index).trim() : decoded,
         year: yearMatch ? Number(yearMatch[1]) : null,
         firstWatched: watched,
         rating: ratingHalf ? Number(ratingHalf) / 2 : null,
         liked: /icon-liked/.test(row),
         reviewUri,
-        uri:
-          reviewUri ?? `https://letterboxd.com/${username}/film/${slug}/`,
+        uri: reviewUri ?? `https://letterboxd.com/${username}/film/${slug}/`,
       })
     }
   }
@@ -296,9 +291,7 @@ export function extractReviewFromPage(html: string): string | null {
       .filter(Boolean)
     if (paragraphs.length > 0) return paragraphs.join("\n\n")
   }
-  const og = /<meta property="og:description" content="([^"]*)"/.exec(
-    html,
-  )?.[1]
+  const og = /<meta property="og:description" content="([^"]*)"/.exec(html)?.[1]
   return og ? decodeHtml(og).trim() || null : null
 }
 
@@ -315,7 +308,7 @@ export const syncLetterboxdHistoryFn = createServerFn({ method: "POST" })
         .select()
         .from(userSettings)
         .where(eq(userSettings.userId, context.userId))
-        .limit(1),
+        .limit(1)
     )
     const username = settings[0]?.letterboxdUsername
     if (!username) {
@@ -332,7 +325,7 @@ export const syncLetterboxdHistoryFn = createServerFn({ method: "POST" })
     for (let page = 1; page <= MAX_DIARY_PAGES; page++) {
       const result = await fetchLetterboxdPage(
         `https://letterboxd.com/${encodeURIComponent(username)}/diary/page/${page}/`,
-        viaFirecrawl,
+        viaFirecrawl
       )
       if (!result.ok) {
         if (page > 1) break // keep what we have
@@ -375,7 +368,7 @@ export const syncLetterboxdHistoryFn = createServerFn({ method: "POST" })
           year: films.year,
           letterboxdReview: films.letterboxdReview,
         })
-        .from(films),
+        .from(films)
     )
 
     // Index diary films by normalized title.
@@ -395,7 +388,7 @@ export const syncLetterboxdHistoryFn = createServerFn({ method: "POST" })
         (entry) =>
           film.year == null ||
           entry.year == null ||
-          Math.abs(entry.year - film.year) <= 1,
+          Math.abs(entry.year - film.year) <= 1
       )
       if (!hit) continue
       await withUser(context.userId, (tx) =>
@@ -409,7 +402,7 @@ export const syncLetterboxdHistoryFn = createServerFn({ method: "POST" })
             letterboxdUri: hit.uri,
             updatedAt: new Date(),
           })
-          .where(eq(films.id, film.id)),
+          .where(eq(films.id, film.id))
       )
       matched++
       // Diary rows only link to reviews — fetch the text below unless an
@@ -430,7 +423,7 @@ export const syncLetterboxdHistoryFn = createServerFn({ method: "POST" })
         tx
           .update(films)
           .set({ letterboxdReview: review, updatedAt: new Date() })
-          .where(eq(films.id, filmId)),
+          .where(eq(films.id, filmId))
       )
       reviews++
       if (!viaFirecrawl) {
@@ -445,7 +438,7 @@ export const syncLetterboxdHistoryFn = createServerFn({ method: "POST" })
         .onConflictDoUpdate({
           target: userSettings.userId,
           set: { lastLetterboxdSyncAt: new Date() },
-        }),
+        })
     )
 
     return {

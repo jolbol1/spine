@@ -118,7 +118,7 @@ function FilmDetailPage() {
       }
       await invalidate()
       toast.success(
-        `Rotten Tomatoes — critics ${result.criticsScore ?? "–"}%, audience ${result.audienceScore ?? "–"}%`,
+        `Rotten Tomatoes — critics ${result.criticsScore ?? "–"}%, audience ${result.audienceScore ?? "–"}%`
       )
     },
     onError: () => toast.error("Could not reach Rotten Tomatoes"),
@@ -185,7 +185,7 @@ function FilmDetailPage() {
                   <Link
                     to="/people/$person"
                     params={{ person: name }}
-                    className="text-foreground font-medium transition-colors hover:text-lb-green"
+                    className="font-medium text-foreground transition-colors hover:text-lb-green"
                   >
                     {name}
                   </Link>
@@ -212,8 +212,7 @@ function FilmDetailPage() {
                 <EyeOff className="size-3" /> Unwatched
               </Badge>
             )}
-            {(film.rtCriticsScore != null ||
-              film.rtAudienceScore != null) && (
+            {(film.rtCriticsScore != null || film.rtAudienceScore != null) && (
               <a
                 href={film.rtUrl ?? undefined}
                 target="_blank"
@@ -241,7 +240,7 @@ function FilmDetailPage() {
             )}
             <button
               type="button"
-              className="text-muted-foreground hover:text-foreground inline-flex items-center transition-colors disabled:opacity-50"
+              className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
               title={
                 film.rtSyncedAt
                   ? "Refresh Rotten Tomatoes scores"
@@ -257,19 +256,19 @@ function FilmDetailPage() {
             </button>
           </div>
           {film.tmdbDetails && film.tmdbDetails.genres.length > 0 && (
-            <p className="text-muted-foreground pt-1 text-sm">
+            <p className="pt-1 text-sm text-muted-foreground">
               {film.tmdbDetails.genres.join(" · ")}
             </p>
           )}
         </div>
 
         {film.tmdbId == null && (
-          <div className="border-lb-orange/40 bg-lb-orange/10 flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-lb-orange/40 bg-lb-orange/10 p-4">
             <div className="flex items-start gap-2.5">
-              <TriangleAlert className="text-lb-orange mt-0.5 size-4 shrink-0" />
+              <TriangleAlert className="mt-0.5 size-4 shrink-0 text-lb-orange" />
               <div>
                 <p className="text-sm font-medium">No TMDB match</p>
-                <p className="text-muted-foreground text-xs">
+                <p className="text-xs text-muted-foreground">
                   Cast, genres, studio, and the IMDb link are missing because
                   this title wasn't found on TMDB. Check the title and year
                   (Edit), then retry.
@@ -301,7 +300,7 @@ function FilmDetailPage() {
                 Watched tracking
                 {film.letterboxdRating != null && (
                   <span
-                    className="text-lb-green font-bold tracking-tight"
+                    className="font-bold tracking-tight text-lb-green"
                     title={`Rated ${film.letterboxdRating} on Letterboxd`}
                   >
                     {"★".repeat(Math.floor(film.letterboxdRating))}
@@ -461,7 +460,7 @@ function FilmDetailPage() {
                   key={member.id}
                   to="/people/$person"
                   params={{ person: member.name }}
-                  className="bg-card flex items-center gap-2 rounded-full border py-1 pr-3 pl-1 transition-colors hover:border-lb-green"
+                  className="flex items-center gap-2 rounded-full border bg-card py-1 pr-3 pl-1 transition-colors hover:border-lb-green"
                 >
                   {member.profilePath ? (
                     <img
@@ -471,7 +470,7 @@ function FilmDetailPage() {
                       className="size-7 rounded-full object-cover"
                     />
                   ) : (
-                    <span className="bg-secondary flex size-7 items-center justify-center rounded-full text-[10px] font-bold">
+                    <span className="flex size-7 items-center justify-center rounded-full bg-secondary text-[10px] font-bold">
                       {member.name
                         .split(" ")
                         .map((part) => part[0])
@@ -482,7 +481,7 @@ function FilmDetailPage() {
                   <span className="text-sm leading-none">
                     {member.name}
                     {member.character && (
-                      <span className="text-muted-foreground block pt-0.5 text-[11px] leading-none">
+                      <span className="block pt-0.5 text-[11px] leading-none text-muted-foreground">
                         {member.character}
                       </span>
                     )}
@@ -498,7 +497,7 @@ function FilmDetailPage() {
             <h2 className="mb-2 text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
               My review
             </h2>
-            <blockquote className="border-lb-green/50 border-l-2 pl-3 text-sm whitespace-pre-wrap">
+            <blockquote className="border-l-2 border-lb-green/50 pl-3 text-sm whitespace-pre-wrap">
               {film.letterboxdReview}
             </blockquote>
           </div>

@@ -2,7 +2,15 @@ import { useSuspenseQuery } from "@tanstack/react-query"
 import { Link, createFileRoute } from "@tanstack/react-router"
 import { ArrowDownWideNarrow, ArrowUpNarrowWide } from "lucide-react"
 import { useMemo, useState } from "react"
-import { Bar, BarChart, CartesianGrid, Pie, PieChart, XAxis, YAxis } from "recharts"
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Pie,
+  PieChart,
+  XAxis,
+  YAxis,
+} from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ChartContainer,
@@ -167,20 +175,16 @@ function RankedCard({
   max?: number
 }) {
   const [lowest, setLowest] = useState(false)
-  const shown = lowest
-    ? rows.slice(-maxRows).reverse()
-    : rows.slice(0, maxRows)
+  const shown = lowest ? rows.slice(-maxRows).reverse() : rows.slice(0, maxRows)
   const max = Math.max(...shown.map((r) => r.value), 1e-9)
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-        <CardTitle className="text-sm">
-          {lowest ? lowTitle : title}
-        </CardTitle>
+        <CardTitle className="text-sm">{lowest ? lowTitle : title}</CardTitle>
         {rows.length > 1 && (
           <button
             type="button"
-            className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors"
+            className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
             onClick={() => setLowest((v) => !v)}
           >
             {lowest ? (
@@ -222,7 +226,7 @@ function RankedCard({
               <div
                 className={cn(
                   "h-full rounded-full",
-                  ACCENTS[i % ACCENTS.length],
+                  ACCENTS[i % ACCENTS.length]
                 )}
                 style={{ width: `${Math.max(4, (row.value / max) * 100)}%` }}
               />
@@ -261,7 +265,7 @@ function AgeRatingChart({ rows }: { rows: Array<[string, number]> }) {
       </CardHeader>
       <CardContent>
         {data.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             No data yet — run the TMDB details sync in Settings.
           </p>
         ) : (
@@ -335,7 +339,11 @@ function DecadeChart({ rows }: { rows: Array<[string, number]> }) {
               cursor={false}
               content={<ChartTooltipContent hideLabel />}
             />
-            <Bar dataKey="count" fill="var(--color-count)" radius={[4, 4, 0, 0]} />
+            <Bar
+              dataKey="count"
+              fill="var(--color-count)"
+              radius={[4, 4, 0, 0]}
+            />
           </BarChart>
         </ChartContainer>
       </CardContent>
@@ -359,7 +367,7 @@ function DonutCard({
     rows.map(([name], i) => [
       name,
       { label: name, color: CHART_COLORS[i % CHART_COLORS.length] },
-    ]),
+    ])
   ) as ChartConfig
   return (
     <Card>
@@ -368,9 +376,12 @@ function DonutCard({
       </CardHeader>
       <CardContent>
         {data.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No data yet.</p>
+          <p className="text-sm text-muted-foreground">No data yet.</p>
         ) : (
-          <ChartContainer config={config} className="mx-auto aspect-square h-56">
+          <ChartContainer
+            config={config}
+            className="mx-auto aspect-square h-56"
+          >
             <PieChart>
               <ChartTooltip
                 cursor={false}
@@ -404,7 +415,7 @@ function RegionChart({ rows }: { rows: Array<[string, number]> }) {
       </CardHeader>
       <CardContent>
         {data.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No data yet.</p>
+          <p className="text-sm text-muted-foreground">No data yet.</p>
         ) : (
           <ChartContainer config={config} className="h-56 w-full">
             <BarChart accessibilityLayer data={data}>
@@ -521,13 +532,19 @@ function StatsPage() {
         />
         <StatCard
           label="Shelf runtime"
-          value={stats.totalRuntimeMinutes > 0 ? formatDays(stats.totalRuntimeMinutes) : "—"}
+          value={
+            stats.totalRuntimeMinutes > 0
+              ? formatDays(stats.totalRuntimeMinutes)
+              : "—"
+          }
           detail="every disc back to back"
         />
         <StatCard
           label="Combined box office"
           value={
-            stats.totalBoxOffice > 0 ? formatUsdCompact(stats.totalBoxOffice) : "—"
+            stats.totalBoxOffice > 0
+              ? formatUsdCompact(stats.totalBoxOffice)
+              : "—"
           }
           detail={
             stats.boxOfficeCount > 0
@@ -580,7 +597,11 @@ function StatsPage() {
           max={10}
           personLinks
         />
-        <BreakdownCard title="Top publishers" rows={stats.byPublisher} max={10} />
+        <BreakdownCard
+          title="Top publishers"
+          rows={stats.byPublisher}
+          max={10}
+        />
         <BreakdownCard
           title="Publisher by package type"
           rows={stats.publisherPackage}
@@ -639,7 +660,7 @@ function computeStats(films: Film[]) {
   const withRevenue = films.filter((f) => f.tmdbDetails?.revenue)
   const totalBoxOffice = withRevenue.reduce(
     (sum, f) => sum + (f.tmdbDetails?.revenue ?? 0),
-    0,
+    0
   )
 
   // Full sorted lists — the cards slice their end (highest/lowest) locally.
@@ -680,7 +701,7 @@ function computeStats(films: Film[]) {
 
   const byCertification = tally(
     films,
-    (f) => f.tmdbDetails?.certification ?? null,
+    (f) => f.tmdbDetails?.certification ?? null
   )
   byCertification.sort((a, b) => {
     const ai = CERT_ORDER.indexOf(a[0])
@@ -704,7 +725,7 @@ function computeStats(films: Film[]) {
   // TV sets store total series runtime, which would dwarf any feature —
   // longest/shortest only compare films.
   const withRuntime = films.filter(
-    (f) => f.runtimeMinutes != null && f.tmdbMediaType !== "tv",
+    (f) => f.runtimeMinutes != null && f.tmdbMediaType !== "tv"
   )
   const longest = withRuntime.reduce<Film | null>(
     (best, f) =>
@@ -736,7 +757,7 @@ function computeStats(films: Film[]) {
     topDirectors: tally(films.flatMap(directorsOf), (name) => name),
     topActors: tally(
       films.flatMap((f) => f.tmdbCast ?? []),
-      (member) => member.name,
+      (member) => member.name
     ),
     byFormat: tally(films, (f) => f.format),
     byResolution: tally(films, resolutionOf),
@@ -747,22 +768,22 @@ function computeStats(films: Film[]) {
     byPublisher: tally(films, (f) => f.label),
     byProductionCompany: tally(
       films.flatMap((f) => f.tmdbDetails?.productionCompanies ?? []),
-      (name) => name,
+      (name) => name
     ),
     byGenre: tally(
       films.flatMap((f) => f.tmdbDetails?.genres ?? []),
-      (name) => name,
+      (name) => name
     ),
     byCountry: tally(
       films.flatMap((f) => f.tmdbDetails?.productionCountries ?? []),
-      (name) => name,
+      (name) => name
     ),
     byLanguage: tally(films, (f) =>
-      languageName(f.tmdbDetails?.originalLanguage),
+      languageName(f.tmdbDetails?.originalLanguage)
     ),
     // A "franchise" needs at least two owned entries — one is just a film.
     franchises: tally(films, (f) => f.tmdbDetails?.collection ?? null).filter(
-      ([, count]) => count >= 2,
+      ([, count]) => count >= 2
     ),
     topBoxOffice,
     topBudget,
@@ -772,17 +793,15 @@ function computeStats(films: Film[]) {
     pricedCount: priced.length,
     totalRuntimeMinutes: films.reduce(
       (sum, f) => sum + (f.runtimeMinutes ?? 0),
-      0,
+      0
     ),
     totalBoxOffice,
     boxOfficeCount: withRevenue.length,
     avgCritics: mean(
-      films.map((f) => f.rtCriticsScore).filter((n): n is number => n != null),
+      films.map((f) => f.rtCriticsScore).filter((n): n is number => n != null)
     ),
     avgAudience: mean(
-      films
-        .map((f) => f.rtAudienceScore)
-        .filter((n): n is number => n != null),
+      films.map((f) => f.rtAudienceScore).filter((n): n is number => n != null)
     ),
   }
 }

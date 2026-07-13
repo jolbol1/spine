@@ -12,7 +12,7 @@ if (!url) {
 const sql = postgres(url, { max: 1 })
 const file = readFileSync(
   new URL("../drizzle/rls.sql", import.meta.url),
-  "utf8",
+  "utf8"
 )
 await sql.unsafe(file)
 await sql.end()

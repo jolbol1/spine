@@ -22,7 +22,7 @@ export function CollectionSearch({
     () => () => {
       if (debounce.current) clearTimeout(debounce.current)
     },
-    [],
+    []
   )
 
   const handleChange = (next: string) => {
