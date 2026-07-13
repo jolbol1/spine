@@ -1,5 +1,5 @@
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Brand } from "@/components/brand"
 import { Button } from "@/components/ui/button"
@@ -17,10 +17,13 @@ export const Route = createFileRoute("/signup")({
 
 function SignupPage() {
   const router = useRouter()
+  const [interactive, setInteractive] = useState(false)
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [pending, setPending] = useState(false)
+
+  useEffect(() => setInteractive(true), [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -50,6 +53,7 @@ function SignupPage() {
                 <Input
                   id="name"
                   required
+                  disabled={!interactive}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
@@ -61,6 +65,7 @@ function SignupPage() {
                   type="email"
                   autoComplete="email"
                   required
+                  disabled={!interactive}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
@@ -73,11 +78,16 @@ function SignupPage() {
                   autoComplete="new-password"
                   minLength={8}
                   required
+                  disabled={!interactive}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </Field>
-              <Button type="submit" className="w-full" disabled={pending}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={pending || !interactive}
+              >
                 {pending ? "Creating account…" : "Create account"}
               </Button>
             </form>
