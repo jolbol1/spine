@@ -32,6 +32,7 @@ export async function addFilm(
     director?: string
     year?: string
     runtime?: string
+    discCount?: string
     barcode?: string
     price?: string
     notes?: string
@@ -44,6 +45,7 @@ export async function addFilm(
   if (film.runtime) {
     await page.getByLabel("Runtime (minutes)").fill(film.runtime)
   }
+  if (film.discCount) await page.getByLabel("Disc count").fill(film.discCount)
   if (film.barcode) {
     await page.getByLabel("Barcode (UPC/EAN)").fill(film.barcode)
   }
