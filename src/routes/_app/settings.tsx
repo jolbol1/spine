@@ -79,7 +79,7 @@ function SettingsPage() {
       }
       toast.success(
         result.matched > 0
-          ? `Full history synced — ${result.matched} title${result.matched === 1 ? "" : "s"} newly marked watched (${result.filmsSeen} films across ${result.pages} page${result.pages === 1 ? "" : "s"})`
+          ? `Full history synced — ${result.matched} title${result.matched === 1 ? "" : "s"} matched (${result.filmsSeen} films across ${result.pages} page${result.pages === 1 ? "" : "s"})${result.reviews > 0 ? `, ${result.reviews} review${result.reviews === 1 ? "" : "s"} pulled in` : ""}`
           : `Full history synced — no new matches (${result.filmsSeen} films checked)`,
       )
     },

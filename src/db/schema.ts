@@ -168,6 +168,10 @@ export const films = pgTable(
     letterboxdRating: real("letterboxd_rating"),
     /** The user's review/film page on Letterboxd for this title. */
     letterboxdUri: text("letterboxd_uri"),
+    /** Review text — from the RSS feed, or the review page for old entries. */
+    letterboxdReview: text("letterboxd_review"),
+    /** The ♥ on the Letterboxd log entry. */
+    letterboxdLiked: boolean("letterboxd_liked"),
     /**
      * Manual per-title override: null = follow Letterboxd sync,
      * true/false = user has pinned the watched state.

@@ -308,6 +308,15 @@ function FilmDetailPage() {
                     {film.letterboxdRating % 1 !== 0 && "½"}
                   </span>
                 )}
+                {film.letterboxdLiked && (
+                  <span
+                    className="text-lb-orange"
+                    title="Liked on Letterboxd"
+                    aria-label="Liked on Letterboxd"
+                  >
+                    ♥
+                  </span>
+                )}
               </p>
               <p className="text-xs text-muted-foreground">
                 {overridden
@@ -481,6 +490,17 @@ function FilmDetailPage() {
                 </Link>
               ))}
             </div>
+          </div>
+        )}
+
+        {film.letterboxdReview && (
+          <div>
+            <h2 className="mb-2 text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+              My review
+            </h2>
+            <blockquote className="border-lb-green/50 border-l-2 pl-3 text-sm whitespace-pre-wrap">
+              {film.letterboxdReview}
+            </blockquote>
           </div>
         )}
 

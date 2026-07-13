@@ -12,11 +12,28 @@ interface RssItem {
   "letterboxd:rewatch"?: string
   "letterboxd:watchedDate"?: string
   "letterboxd:memberRating"?: number | string
+  "letterboxd:memberLike"?: string
+  "tmdb:movieId"?: number | string
+  description?: string
   link?: string
 }
 
 function normalizeTitle(title: string): string {
   return title.trim().toLowerCase().replace(/\s+/g, " ")
+}
+
+/**
+ * Pull the review text out of an RSS item's description — HTML with the
+ * poster in one <p> and the review in the rest. Entries logged without a
+ * review just carry the poster (and sometimes a "Watched on …" line).
+ */
+export function reviewFromRssDescription(html: string): string | null {
+  const paragraphs = [...html.matchAll(/<p>([\s\S]*?)<\/p>/g)]
+    .map((m) => m[1])
+    .filter((p) => !/<img\b/i.test(p))
+    .map((p) => decodeHtml(p.replace(/<[^>]+>/g, "")).trim())
+    .filter((p) => p !== "" && !/^Watched on /.test(p))
+  return paragraphs.join("\n\n") || null
 }
 
 /**
@@ -68,12 +85,12 @@ export const syncLetterboxdFn = createServerFn({ method: "POST" })
         ? [rawItems]
         : []
 
-    // First-time watches only; ignore list entries and rewatches.
-    const firstWatches = items.filter(
+    // Diary entries only (they carry a watched date). Rewatches still
+    // update the rating/review — they just never change the first-watch date.
+    const logEntries = items.filter(
       (item) =>
         item["letterboxd:filmTitle"] != null &&
-        item["letterboxd:watchedDate"] &&
-        item["letterboxd:rewatch"] !== "Yes"
+        item["letterboxd:watchedDate"],
     )
 
     const collection = await withUser(context.userId, (tx) =>
@@ -83,44 +100,74 @@ export const syncLetterboxdFn = createServerFn({ method: "POST" })
           title: films.title,
           year: films.year,
           letterboxdWatched: films.letterboxdWatched,
+          tmdbId: films.tmdbId,
+          tmdbMediaType: films.tmdbMediaType,
         })
         .from(films)
     )
 
     let matched = 0
-    for (const entry of firstWatches) {
+    // The feed is newest-first — the first entry seen per film carries the
+    // freshest rating/review, so later (older) entries must not overwrite.
+    const detailsApplied = new Set<string>()
+    for (const entry of logEntries) {
       const entryTitle = normalizeTitle(String(entry["letterboxd:filmTitle"]))
       const entryYear = entry["letterboxd:filmYear"]
         ? Number(entry["letterboxd:filmYear"])
         : null
+      const entryTmdbId = entry["tmdb:movieId"]
+        ? Number(entry["tmdb:movieId"]) || null
+        : null
 
-      const targets = collection.filter((film) => {
-        if (normalizeTitle(film.title) !== entryTitle) return false
-        if (film.year == null || entryYear == null) return true
-        return film.year === entryYear
-      })
+      // The feed's TMDB id beats fuzzy title matching when both sides know it.
+      const byId =
+        entryTmdbId != null
+          ? collection.filter(
+              (film) =>
+                film.tmdbId === entryTmdbId && film.tmdbMediaType !== "tv",
+            )
+          : []
+      const targets =
+        byId.length > 0
+          ? byId
+          : collection.filter((film) => {
+              if (normalizeTitle(film.title) !== entryTitle) return false
+              if (film.year == null || entryYear == null) return true
+              return film.year === entryYear
+            })
 
       const rating = entry["letterboxd:memberRating"]
         ? Number(entry["letterboxd:memberRating"]) || null
         : null
+      const review = reviewFromRssDescription(entry.description ?? "")
+      const isRewatch = entry["letterboxd:rewatch"] === "Yes"
 
       for (const film of targets) {
-        if (film.letterboxdWatched) continue
+        const patch: Partial<typeof films.$inferInsert> = {}
+        if (!detailsApplied.has(film.id)) {
+          detailsApplied.add(film.id)
+          if (rating != null) patch.letterboxdRating = rating
+          if (review != null) patch.letterboxdReview = review
+          if (entry["letterboxd:memberLike"] != null) {
+            patch.letterboxdLiked = entry["letterboxd:memberLike"] === "Yes"
+          }
+          if (entry.link) patch.letterboxdUri = entry.link
+        }
+        if (!isRewatch && !film.letterboxdWatched) {
+          patch.letterboxdWatched = true
+          patch.letterboxdWatchedAt = new Date(
+            `${entry["letterboxd:watchedDate"]}T00:00:00Z`,
+          )
+          film.letterboxdWatched = true
+          matched++
+        }
+        if (Object.keys(patch).length === 0) continue
         await withUser(context.userId, (tx) =>
           tx
             .update(films)
-            .set({
-              letterboxdWatched: true,
-              letterboxdWatchedAt: new Date(
-                `${entry["letterboxd:watchedDate"]}T00:00:00Z`
-              ),
-              letterboxdRating: rating,
-              letterboxdUri: entry.link ?? null,
-              updatedAt: new Date(),
-            })
+            .set({ ...patch, updatedAt: new Date() })
             .where(eq(films.id, film.id))
         )
-        matched++
       }
     }
 
@@ -136,7 +183,7 @@ export const syncLetterboxdFn = createServerFn({ method: "POST" })
 
     return {
       ok: true as const,
-      scanned: firstWatches.length,
+      scanned: logEntries.length,
       matched,
     }
   })
@@ -168,8 +215,12 @@ interface DiaryFilm {
   firstWatched: Date
   /** Most recent rating given (diary is newest-first). */
   rating: number | null
+  /** The ♥ on the most recent entry. */
+  liked: boolean
   /** The user's review page when any entry has a review, else their film page. */
   uri: string
+  /** Review page to follow for the text — diary rows only carry the link. */
+  reviewUri: string | null
 }
 
 /**
@@ -200,6 +251,13 @@ export function parseDiaryPage(
     const reviewHref = row.match(
       /col-review[^>]*>\s*<a href="([^"]+)"[^>]*icon-review/,
     )?.[1]
+    // Firecrawl's rawHtml rewrites hrefs to absolute URLs; direct
+    // fetches keep them relative — handle both.
+    const reviewUri = reviewHref
+      ? reviewHref.startsWith("http")
+        ? reviewHref
+        : `https://letterboxd.com${reviewHref}`
+      : null
 
     const existing = entries.get(slug)
     if (existing) {
@@ -207,6 +265,7 @@ export function parseDiaryPage(
       // recent) and let the watch date sink to the earliest entry.
       if (watched < existing.firstWatched) existing.firstWatched = watched
       existing.rating ??= ratingHalf ? Number(ratingHalf) / 2 : null
+      existing.reviewUri ??= reviewUri
     } else {
       entries.set(slug, {
         title: yearMatch
@@ -215,17 +274,32 @@ export function parseDiaryPage(
         year: yearMatch ? Number(yearMatch[1]) : null,
         firstWatched: watched,
         rating: ratingHalf ? Number(ratingHalf) / 2 : null,
-        // Firecrawl's rawHtml rewrites hrefs to absolute URLs; direct
-        // fetches keep them relative — handle both.
-        uri: reviewHref
-          ? reviewHref.startsWith("http")
-            ? reviewHref
-            : `https://letterboxd.com${reviewHref}`
-          : `https://letterboxd.com/${username}/film/${slug}/`,
+        liked: /icon-liked/.test(row),
+        reviewUri,
+        uri:
+          reviewUri ?? `https://letterboxd.com/${username}/film/${slug}/`,
       })
     }
   }
   return rows.length
+}
+
+/**
+ * Review text from the user's Letterboxd review page — the diary only
+ * links to it. Falls back to og:description (a plain-text copy).
+ */
+export function extractReviewFromPage(html: string): string | null {
+  const body = /js-review-body[^>]*>([\s\S]*?)<\/div>/.exec(html)?.[1]
+  if (body) {
+    const paragraphs = [...body.matchAll(/<p>([\s\S]*?)<\/p>/g)]
+      .map((m) => decodeHtml(m[1].replace(/<[^>]+>/g, "")).trim())
+      .filter(Boolean)
+    if (paragraphs.length > 0) return paragraphs.join("\n\n")
+  }
+  const og = /<meta property="og:description" content="([^"]*)"/.exec(
+    html,
+  )?.[1]
+  return og ? decodeHtml(og).trim() || null : null
 }
 
 /**
@@ -299,6 +373,7 @@ export const syncLetterboxdHistoryFn = createServerFn({ method: "POST" })
           id: films.id,
           title: films.title,
           year: films.year,
+          letterboxdReview: films.letterboxdReview,
         })
         .from(films),
     )
@@ -313,6 +388,7 @@ export const syncLetterboxdHistoryFn = createServerFn({ method: "POST" })
     }
 
     let matched = 0
+    const reviewsToFetch: Array<{ filmId: string; uri: string }> = []
     for (const film of collection) {
       const entries = byTitle.get(normalizeTitle(film.title))
       const hit = entries?.find(
@@ -329,12 +405,37 @@ export const syncLetterboxdHistoryFn = createServerFn({ method: "POST" })
             letterboxdWatched: true,
             letterboxdWatchedAt: hit.firstWatched,
             letterboxdRating: hit.rating,
+            letterboxdLiked: hit.liked,
             letterboxdUri: hit.uri,
             updatedAt: new Date(),
           })
           .where(eq(films.id, film.id)),
       )
       matched++
+      // Diary rows only link to reviews — fetch the text below unless an
+      // earlier sync (or the RSS feed) already stored it.
+      if (hit.reviewUri && film.letterboxdReview == null) {
+        reviewsToFetch.push({ filmId: film.id, uri: hit.reviewUri })
+      }
+    }
+
+    let reviews = 0
+    for (const { filmId, uri } of reviewsToFetch) {
+      const page = await fetchLetterboxdPage(uri, viaFirecrawl)
+      if (!page.ok) continue
+      viaFirecrawl = page.via === "firecrawl"
+      const review = extractReviewFromPage(page.html)
+      if (!review) continue
+      await withUser(context.userId, (tx) =>
+        tx
+          .update(films)
+          .set({ letterboxdReview: review, updatedAt: new Date() })
+          .where(eq(films.id, filmId)),
+      )
+      reviews++
+      if (!viaFirecrawl) {
+        await new Promise((resolve) => setTimeout(resolve, 400))
+      }
     }
 
     await withUser(context.userId, (tx) =>
@@ -352,5 +453,6 @@ export const syncLetterboxdHistoryFn = createServerFn({ method: "POST" })
       pages,
       filmsSeen: diary.size,
       matched,
+      reviews,
     }
   })
