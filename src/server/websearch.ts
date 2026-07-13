@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 import { env } from "@/env"
+import { dedupeTmdbTitleMatches } from "@/lib/tmdb-title-matches"
 import { authMiddleware } from "@/server/middleware"
 import { searchTmdbTitles } from "@/server/tmdb"
 import type { TmdbTitleMatch } from "@/server/tmdb"
@@ -91,14 +92,12 @@ export const searchWebBarcodeFn = createServerFn({ method: "POST" })
     }
 
     // Canonicalise via TMDB, deduped across candidates.
-    const matches: TmdbTitleMatch[] = []
-    const seen = new Set<number>()
+    let matches: TmdbTitleMatch[] = []
     for (const candidate of candidates) {
-      for (const match of await searchTmdbTitles(candidate, 4)) {
-        if (seen.has(match.tmdbId)) continue
-        seen.add(match.tmdbId)
-        matches.push(match)
-      }
+      matches = dedupeTmdbTitleMatches([
+        ...matches,
+        ...(await searchTmdbTitles(candidate, 4)),
+      ])
       if (matches.length >= 8) break
     }
 
