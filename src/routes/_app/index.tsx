@@ -11,7 +11,6 @@ import {
   LayoutGrid,
   List,
   Loader2,
-  Search,
   SlidersHorizontal,
   Star,
   Trash2,
@@ -21,6 +20,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { z } from "zod"
 import { FilmCard, FormatBadge, PosterFrame } from "@/components/film-card"
+import { CollectionSearch } from "@/components/collection-search"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -818,23 +818,6 @@ function CollectionPage() {
     }
   }
 
-  // The search box types into local state; the URL follows, debounced.
-  const [search, setSearch] = useState(params.q ?? "")
-  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => {
-    return () => {
-      if (searchDebounce.current) clearTimeout(searchDebounce.current)
-    }
-  }, [])
-  const onSearchChange = (value: string) => {
-    setSearch(value)
-    if (searchDebounce.current) clearTimeout(searchDebounce.current)
-    searchDebounce.current = setTimeout(
-      () => setParams({ q: value.trim() || null }),
-      300,
-    )
-  }
-
   const hasUrlFilters = FILTER_DEFS.some((d) => params[d.key] != null)
   const [filtersOpen, setFiltersOpen] = useState(hasUrlFilters)
 
@@ -866,7 +849,7 @@ function CollectionPage() {
     if (typeFilter !== "all") {
       list = list.filter((f) => (typeFilter === "tv" ? isTv(f) : !isTv(f)))
     }
-    const q = search.trim().toLowerCase()
+    const q = params.q?.trim().toLowerCase()
     if (q) {
       list = list.filter(
         (f) =>
@@ -885,7 +868,7 @@ function CollectionPage() {
       list = list.filter((f) => sortLetter(f) === letter)
     }
     return list
-  }, [films, search, sort, params.dir, letter, filters, typeFilter])
+  }, [films, sort, params.q, params.dir, letter, filters, typeFilter])
 
   const watchedCount = films.filter(isWatched).length
 
@@ -922,15 +905,10 @@ function CollectionPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search title, director, spine…"
-              className="w-64 pl-8"
-            />
-          </div>
+          <CollectionSearch
+            query={params.q ?? ""}
+            onQueryChange={(query) => setParams({ q: query || null })}
+          />
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
