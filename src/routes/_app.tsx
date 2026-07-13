@@ -1,3 +1,4 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   Link,
   Outlet,
@@ -6,6 +7,8 @@ import {
   useRouter,
 } from "@tanstack/react-router"
 import { LogOut, ScanBarcode } from "lucide-react"
+import { useEffect, useRef } from "react"
+import { toast } from "sonner"
 import { Brand } from "@/components/brand"
 import { Button } from "@/components/ui/button"
 import {
@@ -19,6 +22,48 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { signOut } from "@/lib/auth-client"
+import { settingsQuery } from "@/lib/queries"
+import { syncLetterboxdFn } from "@/server/letterboxd"
+
+/** Re-fetch the Letterboxd RSS feed when the last sync is older than this. */
+const LETTERBOXD_STALE_MS = 12 * 60 * 60 * 1000
+
+/**
+ * Background Letterboxd sync on app load: when a username is configured
+ * and the last sync is stale, pull the RSS feed once. Failures stay
+ * silent — the manual buttons in Settings still exist.
+ */
+function useAutoLetterboxdSync() {
+  const queryClient = useQueryClient()
+  const { data: settings } = useQuery(settingsQuery)
+  const attempted = useRef(false)
+
+  useEffect(() => {
+    if (attempted.current || !settings?.letterboxdUsername) return
+    const last = settings.lastLetterboxdSyncAt
+    const stale =
+      last == null || Date.now() - new Date(last).getTime() > LETTERBOXD_STALE_MS
+    if (!stale) return
+    attempted.current = true
+
+    syncLetterboxdFn()
+      .then(async (result) => {
+        if (!result.ok) return
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["settings"] }),
+          queryClient.invalidateQueries({ queryKey: ["films"] }),
+        ])
+        if (result.matched > 0) {
+          toast.success(
+            `Letterboxd sync — ${result.matched} title${result.matched === 1 ? "" : "s"} newly marked watched`,
+          )
+        }
+      })
+      .catch(() => {
+        // Background nicety only; the Settings page has manual sync.
+      })
+  }, [settings, queryClient])
+}
 
 export const Route = createFileRoute("/_app")({
   beforeLoad: ({ context }) => {
@@ -38,6 +83,7 @@ const navLinks = [
 function AppLayout() {
   const { user } = Route.useRouteContext()
   const router = useRouter()
+  useAutoLetterboxdSync()
 
   async function handleSignOut() {
     await signOut()
