@@ -14,7 +14,7 @@ const LIST_URL = "https://www.criterion.com/shop/browse/list?sort=spine_number"
 const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000 // a week
 
 /** Loose title key: lowercase, no leading article, alphanumerics only. */
-function normalizeTitle(title: string): string {
+export function normalizeCriterionTitle(title: string): string {
   return title
     .toLowerCase()
     .replace(/^(the|a|an)\s+/, "")
@@ -32,7 +32,7 @@ interface SpineRow {
  * Parse the criterion.com list view (as Firecrawl markdown). Rows look like:
  * `| 2 | ![Seven Samurai](…) | Seven Samurai | Akira Kurosawa | Japan, | 1954 |`
  */
-function parseList(markdown: string): SpineRow[] {
+export function parseCriterionList(markdown: string): SpineRow[] {
   const rows: SpineRow[] = []
   for (const line of markdown.split("\n")) {
     const m = line.match(
@@ -109,7 +109,7 @@ export async function refreshCacheIfStale(): Promise<
     return { ok: false, error: "Scraping service unreachable." }
   }
 
-  const rows = parseList(markdown)
+  const rows = parseCriterionList(markdown)
   if (rows.length < 100) {
     // A layout change would tank the parse — keep the old cache in that case.
     return {
@@ -126,7 +126,7 @@ export async function refreshCacheIfStale(): Promise<
         rows.slice(i, i + 500).map((row) => ({
           spine: row.spine,
           title: row.title,
-          normalizedTitle: normalizeTitle(row.title),
+          normalizedTitle: normalizeCriterionTitle(row.title),
           director: row.director,
           year: row.year,
         }))
@@ -145,7 +145,7 @@ export async function lookupSpine(
   const matches = await db
     .select()
     .from(criterionSpines)
-    .where(eq(criterionSpines.normalizedTitle, normalizeTitle(title)))
+    .where(eq(criterionSpines.normalizedTitle, normalizeCriterionTitle(title)))
     .limit(10)
   if (matches.length === 0) return null
   if (year != null) {

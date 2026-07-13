@@ -6,12 +6,18 @@ import {
 } from "@/server/bluray"
 import { parseCexResponse } from "@/server/cex"
 import {
+  isCriterionLabel,
+  normalizeCriterionTitle,
+  parseCriterionList,
+} from "@/server/criterion-data"
+import {
   extractReviewFromPage,
   parseDiaryPage,
   reviewFromRssDescription,
 } from "@/server/letterboxd"
 import { fetchRtScores } from "@/server/rottentomatoes"
 import { fetchTmdbById, searchTmdbTitles } from "@/server/tmdb"
+import { cleanWebTitle } from "@/server/websearch"
 import { detectRetailer, extractPrice } from "@/server/wishlist"
 
 afterEach(() => {
@@ -135,6 +141,29 @@ describe("external metadata fixtures", () => {
         "Fixture Release"
       )
     ).toBe("£24.99")
+  })
+
+  it("normalizes Criterion list fixtures and barcode search titles", () => {
+    expect(normalizeCriterionTitle("The Red Shoes: Special Edition")).toBe(
+      "redshoesspecialedition"
+    )
+    expect(
+      parseCriterionList(
+        "| 44 | ![The Red Shoes](cover.jpg) | The Red Shoes | Michael Powell & Emeric Pressburger | United Kingdom, | 1948 |"
+      )
+    ).toEqual([
+      {
+        spine: 44,
+        title: "The Red Shoes",
+        director: "Michael Powell & Emeric Pressburger",
+        year: 1948,
+      },
+    ])
+    expect(isCriterionLabel("The Criterion Collection")).toBe(true)
+    expect(isCriterionLabel("Arrow Video")).toBe(false)
+    expect(cleanWebTitle("Shrek [UK Import] von Andrew Adamson - DVD")).toBe(
+      "Shrek"
+    )
   })
 
   it("scrapes Rotten Tomatoes search and score fixtures", async () => {

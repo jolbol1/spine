@@ -10,7 +10,7 @@ import type { TmdbTitleMatch } from "@/server/tmdb"
  * Reduce a shop/search-result page title to a plausible film title.
  * "Shrek [UK Import] von Andrew Adamson - DVD" → "Shrek"
  */
-function cleanWebTitle(raw: string): string {
+export function cleanWebTitle(raw: string): string {
   let title = raw.split(/[|–—•]/)[0]
   for (const sep of [" - ", " – ", " by ", " von ", " de ", ": Amazon"]) {
     const i = title.indexOf(sep)

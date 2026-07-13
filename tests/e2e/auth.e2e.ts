@@ -24,6 +24,8 @@ test("a guest can create an account, sign out, and sign back in", async ({
   await page.getByText("Sign out", { exact: true }).click()
   await expect(page).toHaveURL(/\/login$/)
 
+  // A returning user commonly lands on a server-rendered login page.
+  await page.reload()
   await page.getByLabel("Email").fill(account.email)
   await page.getByLabel("Password").fill(account.password)
   await page.getByRole("button", { name: "Sign in" }).click()
