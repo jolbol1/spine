@@ -1,6 +1,6 @@
 import type { Film } from "@/db/schema"
 
-export const FORMATS = ["4K UHD", "Blu-ray", "DVD"] as const
+export { FILM_FORMATS as FORMATS } from "@/lib/film-formats"
 export const PACKAGE_TYPES = [
   "Standard",
   "Steelbook",

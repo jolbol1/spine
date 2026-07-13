@@ -32,8 +32,17 @@ import {
 } from "@/components/ui/empty"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import type { WishlistItem } from "@/db/schema"
+import { FILM_FORMATS, filmFormatSchema } from "@/lib/film-formats"
+import type { FilmFormat } from "@/lib/film-formats"
 import { wishlistQuery } from "@/lib/queries"
 import {
   createWishlistItemFn,
@@ -50,7 +59,7 @@ export const Route = createFileRoute("/_app/wishlist")({
 interface DraftItem {
   title: string
   year: string
-  format: string
+  format: FilmFormat
   url: string
   retailer: string
   price: string
@@ -61,7 +70,7 @@ interface DraftItem {
 const emptyDraft: DraftItem = {
   title: "",
   year: "",
-  format: "",
+  format: "Blu-ray",
   url: "",
   retailer: "",
   price: "",
@@ -213,7 +222,7 @@ function WishlistPage() {
                   data: {
                     title: draft.title,
                     year: draft.year ? Number(draft.year) : null,
-                    format: draft.format || null,
+                    format: draft.format,
                     url: draft.url || null,
                     retailer: draft.retailer || null,
                     price: draft.price || null,
@@ -256,15 +265,27 @@ function WishlistPage() {
                       />
                     </Field>
                     <Field>
-                      <FieldLabel htmlFor="w-format">Format</FieldLabel>
-                      <Input
-                        id="w-format"
-                        placeholder="e.g. 4K UHD"
+                      <FieldLabel>Format</FieldLabel>
+                      <Select
                         value={draft.format}
-                        onChange={(e) =>
-                          setDraft({ ...draft, format: e.target.value })
-                        }
-                      />
+                        onValueChange={(format) => {
+                          setDraft({
+                            ...draft,
+                            format: filmFormatSchema.parse(format),
+                          })
+                        }}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {FILM_FORMATS.map((format) => (
+                            <SelectItem key={format} value={format}>
+                              {format}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </Field>
                   </div>
                 </div>

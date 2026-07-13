@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { asc, eq } from "drizzle-orm"
 import { z } from "zod"
 import { films, withUser } from "@/db"
+import { filmFormatSchema } from "@/lib/film-formats"
 import { toSortTitle } from "@/lib/film-helpers"
 import { isCriterionLabel, lookupSpine } from "@/server/criterion-data"
 import { authMiddleware } from "@/server/middleware"
@@ -12,7 +13,7 @@ const filmInput = z.object({
   title: z.string().trim().min(1).max(500),
   director: z.string().trim().max(500).nullish(),
   year: z.number().int().min(1878).max(2100).nullish(),
-  format: z.enum(["4K UHD", "Blu-ray", "DVD"]),
+  format: filmFormatSchema,
   audio: z.string().trim().max(500).nullish(),
   hdr: z.string().trim().max(100).nullish(),
   region: z.string().trim().max(50).nullish(),

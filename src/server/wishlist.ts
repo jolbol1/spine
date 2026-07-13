@@ -3,6 +3,7 @@ import { asc, eq } from "drizzle-orm"
 import { z } from "zod"
 import { films, wishlistItems, withUser } from "@/db"
 import { env } from "@/env"
+import { filmFormatSchema, toCollectionFormat } from "@/lib/film-formats"
 import { toSortTitle } from "@/lib/film-helpers"
 import { authMiddleware } from "@/server/middleware"
 
@@ -210,7 +211,7 @@ const wishlistInput = z.object({
   title: z.string().trim().min(1).max(500),
   director: z.string().trim().max(500).nullish(),
   year: z.number().int().min(1878).max(2100).nullish(),
-  format: z.string().trim().max(50).nullish(),
+  format: filmFormatSchema.nullish(),
   url: z.string().trim().max(2048).nullish(),
   retailer: z.string().trim().max(200).nullish(),
   price: z.string().trim().max(50).nullish(),
@@ -282,7 +283,7 @@ export const moveToCollectionFn = createServerFn({ method: "POST" })
           sortTitle: toSortTitle(item.title),
           director: item.director,
           year: item.year,
-          format: item.format ?? "Blu-ray",
+          format: toCollectionFormat(item.format),
           coverUrl: item.coverUrl,
           notes: item.notes,
         })
