@@ -21,4 +21,4 @@ cleanup
 $compose up --detach --wait
 bunx drizzle-kit push --force
 bun docker/apply-rls.ts
-bunx playwright test
+bunx playwright test "$@"

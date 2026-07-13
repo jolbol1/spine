@@ -878,8 +878,11 @@ function CollectionPage() {
           </EmptyDescription>
         </EmptyHeader>
         <div className="flex gap-2">
-          <Button render={<Link to="/add" />}>Add a film</Button>
+          <Button nativeButton={false} render={<Link to="/add" />}>
+            Add a film
+          </Button>
           <Button
+            nativeButton={false}
             variant="outline"
             render={<Link to="/add" search={{ scan: "1" }} />}
           >

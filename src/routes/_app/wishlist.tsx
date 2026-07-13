@@ -412,6 +412,7 @@ function WishlistCard({
             </Button>
             {item.url && (
               <Button
+                nativeButton={false}
                 size="icon-sm"
                 variant="ghost"
                 render={

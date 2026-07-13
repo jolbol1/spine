@@ -109,6 +109,7 @@ function PersonPage() {
         </div>
         {imdbId && (
           <Button
+            nativeButton={false}
             size="sm"
             variant="outline"
             className="ml-auto gap-1.5"

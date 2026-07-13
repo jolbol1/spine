@@ -14,6 +14,7 @@ export default defineConfig({
     command: "bunx vite dev --host 127.0.0.1 --port 4173",
     url: "http://127.0.0.1:4173/login",
     reuseExistingServer: false,
+    stderr: "ignore",
     timeout: 120_000,
   },
   projects: [

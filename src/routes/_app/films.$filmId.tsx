@@ -332,6 +332,7 @@ function FilmDetailPage() {
             <div className="flex gap-2">
               {film.tmdbId != null && (
                 <Button
+                  nativeButton={false}
                   size="sm"
                   variant="outline"
                   className="gap-1.5"
@@ -348,6 +349,7 @@ function FilmDetailPage() {
               )}
               {film.tmdbDetails?.imdbId && (
                 <Button
+                  nativeButton={false}
                   size="sm"
                   variant="outline"
                   className="gap-1.5"
@@ -364,6 +366,7 @@ function FilmDetailPage() {
               )}
               {film.letterboxdUri && (
                 <Button
+                  nativeButton={false}
                   size="sm"
                   variant="outline"
                   className="gap-1.5"

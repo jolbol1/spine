@@ -119,6 +119,7 @@ function AppLayout() {
           </nav>
           <div className="ml-auto flex items-center gap-2">
             <Button
+              nativeButton={false}
               variant="ghost"
               size="sm"
               className="gap-2"
@@ -127,7 +128,7 @@ function AppLayout() {
               <ScanBarcode className="size-4" />
               <span className="hidden sm:inline">Scan</span>
             </Button>
-            <Button size="sm" render={<Link to="/add" />}>
+            <Button nativeButton={false} size="sm" render={<Link to="/add" />}>
               Add film
             </Button>
             <DropdownMenu>
