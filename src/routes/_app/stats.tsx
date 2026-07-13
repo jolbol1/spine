@@ -1,6 +1,7 @@
 import { useSuspenseQuery } from "@tanstack/react-query"
 import { Link, createFileRoute } from "@tanstack/react-router"
-import { useMemo } from "react"
+import { ArrowDownWideNarrow, ArrowUpNarrowWide } from "lucide-react"
+import { useMemo, useState } from "react"
 import { Bar, BarChart, CartesianGrid, Pie, PieChart, XAxis, YAxis } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -150,21 +151,57 @@ interface RankedRow {
   detail?: string
 }
 
-/** Ranked film list with value bars — top box office, budgets, ROI, … */
-function RankedCard({ title, rows }: { title: string; rows: RankedRow[] }) {
-  const max = rows[0]?.value ?? 1
+/**
+ * Ranked film list with value bars — top box office, budgets, ROI, …
+ * `rows` arrives sorted highest-first; the toggle flips to the lowest end.
+ */
+function RankedCard({
+  title,
+  lowTitle,
+  rows,
+  max: maxRows = 10,
+}: {
+  title: string
+  lowTitle: string
+  rows: RankedRow[]
+  max?: number
+}) {
+  const [lowest, setLowest] = useState(false)
+  const shown = lowest
+    ? rows.slice(-maxRows).reverse()
+    : rows.slice(0, maxRows)
+  const max = Math.max(...shown.map((r) => r.value), 1e-9)
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-sm">{title}</CardTitle>
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+        <CardTitle className="text-sm">
+          {lowest ? lowTitle : title}
+        </CardTitle>
+        {rows.length > 1 && (
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors"
+            onClick={() => setLowest((v) => !v)}
+          >
+            {lowest ? (
+              <>
+                <ArrowUpNarrowWide className="size-3.5" /> Show highest
+              </>
+            ) : (
+              <>
+                <ArrowDownWideNarrow className="size-3.5" /> Show lowest
+              </>
+            )}
+          </button>
+        )}
       </CardHeader>
       <CardContent className="space-y-2">
-        {rows.length === 0 && (
+        {shown.length === 0 && (
           <p className="text-sm text-muted-foreground">
             No data yet — run the TMDB details sync in Settings.
           </p>
         )}
-        {rows.map((row, i) => (
+        {shown.map((row, i) => (
           <div key={row.id} className="space-y-1">
             <div className="flex items-baseline justify-between gap-2 text-sm">
               <Link
@@ -517,10 +554,19 @@ function StatsPage() {
         <DonutCard title="Resolution" rows={stats.byResolution} />
         <RegionChart rows={stats.byRegion} />
         <AgeRatingChart rows={stats.byCertification} />
-        <RankedCard title="Biggest box office" rows={stats.topBoxOffice} />
-        <RankedCard title="Biggest budgets" rows={stats.topBudget} />
         <RankedCard
-          title="Return on budget"
+          title="Biggest box office"
+          lowTitle="Smallest box office"
+          rows={stats.topBoxOffice}
+        />
+        <RankedCard
+          title="Biggest budgets"
+          lowTitle="Lowest budgets"
+          rows={stats.topBudget}
+        />
+        <RankedCard
+          title="Best return on budget"
+          lowTitle="Worst return on budget"
           rows={stats.returnOnBudget}
         />
         <BreakdownCard
@@ -596,9 +642,9 @@ function computeStats(films: Film[]) {
     0,
   )
 
+  // Full sorted lists — the cards slice their end (highest/lowest) locally.
   const topBoxOffice = [...withRevenue]
     .sort((a, b) => b.tmdbDetails!.revenue! - a.tmdbDetails!.revenue!)
-    .slice(0, 10)
     .map((f) => ({
       id: f.id,
       name: f.title,
@@ -609,7 +655,6 @@ function computeStats(films: Film[]) {
   const topBudget = films
     .filter((f) => f.tmdbDetails?.budget)
     .sort((a, b) => b.tmdbDetails!.budget! - a.tmdbDetails!.budget!)
-    .slice(0, 10)
     .map((f) => ({
       id: f.id,
       name: f.title,
@@ -632,7 +677,6 @@ function computeStats(films: Film[]) {
       }
     })
     .sort((a, b) => b.value - a.value)
-    .slice(0, 10)
 
   const byCertification = tally(
     films,
