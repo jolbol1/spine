@@ -1,6 +1,8 @@
 #!/bin/sh
 set -e
 
+: "${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}"
+
 echo "Pushing database schema…"
 bunx drizzle-kit push --force
 

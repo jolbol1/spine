@@ -24,7 +24,7 @@ services:
       DATABASE_URL: postgres://movie_app:movie_app@db:5432/movie
       # Admin connection — schema push + RLS policies
       DATABASE_URL_ADMIN: postgres://postgres:postgres@db:5432/movie
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me-in-production}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
       # Set to your public URL when hosting, e.g. https://spine.example.com
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
       # Hosts allowed to reach the server: comma-separated list, or "*" for
