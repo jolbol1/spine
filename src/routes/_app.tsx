@@ -70,7 +70,7 @@ function AppLayout() {
               variant="ghost"
               size="sm"
               className="gap-2"
-              render={<Link to="/scan" />}
+              render={<Link to="/add" search={{ scan: "1" }} />}
             >
               <ScanBarcode className="size-4" />
               <span className="hidden sm:inline">Scan</span>

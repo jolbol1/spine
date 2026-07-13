@@ -4,6 +4,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgPolicy,
   pgTable,
   real,
@@ -18,6 +19,34 @@ export interface CastMember {
   name: string
   character: string | null
   profilePath: string | null
+}
+
+/**
+ * A saved collection-page view: a name plus the URL search params it
+ * restores (filters, sort, poster info, list/grid, …).
+ */
+export interface SavedView {
+  name: string
+  params: Record<string, string>
+  isDefault?: boolean
+}
+
+/** Title-level TMDB metadata, as stored in films.tmdb_details. */
+export interface TmdbDetails {
+  imdbId: string | null
+  genres: string[]
+  productionCompanies: string[]
+  productionCountries: string[]
+  originalLanguage: string | null
+  /** USD — 0/unknown stored as null. Movies only. */
+  budget: number | null
+  revenue: number | null
+  /** TMDB community rating, 0–10. */
+  voteAverage: number | null
+  /** belongs_to_collection.name, e.g. "The Godfather Collection". */
+  collection: string | null
+  /** Age rating — GB certification preferred, US fallback (e.g. 15, PG). */
+  certification?: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -116,11 +145,21 @@ export const films = pgTable(
     barcode: text("barcode"),
     coverUrl: text("cover_url"),
     notes: text("notes"),
+    /** What the user paid for this copy, in their own currency. */
+    pricePaid: numeric("price_paid", { precision: 10, scale: 2 }),
 
     /** TMDB enrichment — cast fetched via /search/multi + credits. */
     tmdbId: integer("tmdb_id"),
     tmdbMediaType: text("tmdb_media_type"), // movie | tv
     tmdbCast: jsonb("tmdb_cast").$type<CastMember[]>(),
+    tmdbDetails: jsonb("tmdb_details").$type<TmdbDetails>(),
+
+    /** Rotten Tomatoes scores, scraped from rottentomatoes.com. */
+    rtUrl: text("rt_url"),
+    rtCriticsScore: integer("rt_critics_score"), // Tomatometer, 0–100
+    rtAudienceScore: integer("rt_audience_score"), // Popcornmeter, 0–100
+    /** Set on every scrape attempt, matched or not — null means never tried. */
+    rtSyncedAt: timestamp("rt_synced_at"),
 
     /** Watched state derived from the Letterboxd sync. */
     letterboxdWatched: boolean("letterboxd_watched").notNull().default(false),
@@ -181,6 +220,7 @@ export const userSettings = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     letterboxdUsername: text("letterboxd_username"),
     lastLetterboxdSyncAt: timestamp("last_letterboxd_sync_at"),
+    savedViews: jsonb("saved_views").$type<SavedView[]>(),
   },
   () => [ownerPolicy("user_settings_owner")]
 ).enableRLS()

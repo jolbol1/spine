@@ -17,6 +17,30 @@ export const getSettingsFn = createServerFn({ method: "GET" })
     return rows.at(0) ?? null
   })
 
+const savedViewSchema = z.object({
+  name: z.string().trim().min(1).max(60),
+  params: z.record(z.string(), z.string().max(500)),
+  isDefault: z.boolean().optional(),
+})
+
+/** Replace the user's saved collection views (client sends the full list). */
+export const saveViewsFn = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.object({ views: z.array(savedViewSchema).max(50) }))
+  .handler(async ({ context, data }) => {
+    const rows = await withUser(context.userId, (tx) =>
+      tx
+        .insert(userSettings)
+        .values({ userId: context.userId, savedViews: data.views })
+        .onConflictDoUpdate({
+          target: userSettings.userId,
+          set: { savedViews: data.views },
+        })
+        .returning()
+    )
+    return rows[0]
+  })
+
 export const saveSettingsFn = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(

@@ -1,8 +1,9 @@
-import { useSuspenseQuery } from "@tanstack/react-query"
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query"
 import { Link, createFileRoute } from "@tanstack/react-router"
-import { Clapperboard, Users } from "lucide-react"
+import { Clapperboard, ExternalLink, Users } from "lucide-react"
 import { useMemo } from "react"
 import { FilmCard } from "@/components/film-card"
+import { Button } from "@/components/ui/button"
 import {
   Empty,
   EmptyDescription,
@@ -12,6 +13,7 @@ import {
 import type { Film } from "@/db/schema"
 import { directorsOf } from "@/lib/film-helpers"
 import { filmsQuery } from "@/lib/queries"
+import { getPersonImdbFn } from "@/server/tmdb"
 
 export const Route = createFileRoute("/_app/people/$person")({
   loader: ({ context }) => context.queryClient.ensureQueryData(filmsQuery),
@@ -27,22 +29,41 @@ function PersonPage() {
   const { person } = Route.useParams()
   const { data: films } = useSuspenseQuery(filmsQuery)
 
-  const { directed, acted, profilePath } = useMemo(() => {
+  const { directed, acted, profilePath, tmdbPersonId } = useMemo(() => {
     const directedFilms: Film[] = []
     const actedEntries: ActedEntry[] = []
     let profile: string | null = null
+    let personId: number | null = null
     for (const film of films) {
       if (directorsOf(film).includes(person)) directedFilms.push(film)
       const credit = film.tmdbCast?.find((member) => member.name === person)
       if (credit) {
         actedEntries.push({ film, character: credit.character })
         profile ??= credit.profilePath
+        personId ??= credit.id
       }
     }
-    return { directed: directedFilms, acted: actedEntries, profilePath: profile }
+    return {
+      directed: directedFilms,
+      acted: actedEntries,
+      profilePath: profile,
+      tmdbPersonId: personId,
+    }
   }, [films, person])
 
-  if (directed.length === 0 && acted.length === 0) {
+  const inCollection = directed.length > 0 || acted.length > 0
+
+  // Cast credits carry the TMDB person id; directors resolve by name search.
+  const external = useQuery({
+    queryKey: ["person-imdb", person, tmdbPersonId],
+    queryFn: () =>
+      getPersonImdbFn({ data: { name: person, tmdbPersonId } }),
+    enabled: inCollection,
+    staleTime: Infinity,
+  })
+  const imdbId = external.data?.imdbId
+
+  if (!inCollection) {
     return (
       <Empty>
         <EmptyHeader>
@@ -87,6 +108,22 @@ function PersonPage() {
             in your collection
           </p>
         </div>
+        {imdbId && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="ml-auto gap-1.5"
+            render={
+              <a
+                href={`https://www.imdb.com/name/${imdbId}/`}
+                target="_blank"
+                rel="noreferrer"
+              />
+            }
+          >
+            <ExternalLink className="size-3.5" /> IMDb
+          </Button>
+        )}
       </div>
 
       {directed.length > 0 && (

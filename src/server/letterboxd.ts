@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm"
 import { films, userSettings, withUser } from "@/db"
 import { env } from "@/env"
 import { authMiddleware } from "@/server/middleware"
+import { fetchPageWithFallback } from "@/server/scrape"
 
 interface RssItem {
   "letterboxd:filmTitle"?: string | number
@@ -149,64 +150,7 @@ export const syncLetterboxdFn = createServerFn({ method: "POST" })
 
 const MAX_DIARY_PAGES = 120 // ~6,000 entries — a runaway backstop
 
-type LetterboxdFetch =
-  | { ok: true; html: string; via: "direct" | "firecrawl" }
-  | { ok: false; status: "notfound" | "blocked" | "unreachable" }
-
-/**
- * Fetch a Letterboxd page, falling back to Firecrawl when Letterboxd
- * blocks the request — it refuses datacenter IPs outright, so a direct
- * fetch that works from a home connection 403s from most hosting.
- * `preferFirecrawl` skips the doomed direct attempt on subsequent pages.
- */
-export async function fetchLetterboxdPage(
-  url: string,
-  preferFirecrawl = false,
-): Promise<LetterboxdFetch> {
-  if (!preferFirecrawl) {
-    try {
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9",
-          "Accept-Language": "en-GB,en;q=0.9",
-        },
-        signal: AbortSignal.timeout(15_000),
-      })
-      if (res.ok) return { ok: true, html: await res.text(), via: "direct" }
-      if (res.status === 404) return { ok: false, status: "notfound" }
-      // 403/429/5xx — fall through to Firecrawl.
-    } catch {
-      // Network failure — fall through to Firecrawl.
-    }
-  }
-
-  if (!env.FIRECRAWL_API_KEY) return { ok: false, status: "blocked" }
-  try {
-    const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${env.FIRECRAWL_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ url, formats: ["rawHtml"] }),
-      signal: AbortSignal.timeout(90_000),
-    })
-    const payload = (await res.json()) as {
-      data?: { rawHtml?: string; metadata?: { statusCode?: number } }
-    }
-    if (payload.data?.metadata?.statusCode === 404) {
-      return { ok: false, status: "notfound" }
-    }
-    if (!res.ok || !payload.data?.rawHtml) {
-      return { ok: false, status: "blocked" }
-    }
-    return { ok: true, html: payload.data.rawHtml, via: "firecrawl" }
-  } catch {
-    return { ok: false, status: "unreachable" }
-  }
-}
+const fetchLetterboxdPage = fetchPageWithFallback
 
 function decodeHtml(s: string): string {
   return s

@@ -16,7 +16,6 @@ import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppWishlistRouteImport } from './routes/_app/wishlist'
 import { Route as AppStatsRouteImport } from './routes/_app/stats'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
-import { Route as AppScanRouteImport } from './routes/_app/scan'
 import { Route as AppOracleRouteImport } from './routes/_app/oracle'
 import { Route as AppAddRouteImport } from './routes/_app/add'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
@@ -57,11 +56,6 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
-const AppScanRoute = AppScanRouteImport.update({
-  id: '/scan',
-  path: '/scan',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppOracleRoute = AppOracleRouteImport.update({
   id: '/oracle',
   path: '/oracle',
@@ -94,7 +88,6 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/add': typeof AppAddRoute
   '/oracle': typeof AppOracleRoute
-  '/scan': typeof AppScanRoute
   '/settings': typeof AppSettingsRoute
   '/stats': typeof AppStatsRoute
   '/wishlist': typeof AppWishlistRoute
@@ -107,7 +100,6 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/add': typeof AppAddRoute
   '/oracle': typeof AppOracleRoute
-  '/scan': typeof AppScanRoute
   '/settings': typeof AppSettingsRoute
   '/stats': typeof AppStatsRoute
   '/wishlist': typeof AppWishlistRoute
@@ -123,7 +115,6 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/_app/add': typeof AppAddRoute
   '/_app/oracle': typeof AppOracleRoute
-  '/_app/scan': typeof AppScanRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/stats': typeof AppStatsRoute
   '/_app/wishlist': typeof AppWishlistRoute
@@ -140,7 +131,6 @@ export interface FileRouteTypes {
     | '/signup'
     | '/add'
     | '/oracle'
-    | '/scan'
     | '/settings'
     | '/stats'
     | '/wishlist'
@@ -153,7 +143,6 @@ export interface FileRouteTypes {
     | '/signup'
     | '/add'
     | '/oracle'
-    | '/scan'
     | '/settings'
     | '/stats'
     | '/wishlist'
@@ -168,7 +157,6 @@ export interface FileRouteTypes {
     | '/signup'
     | '/_app/add'
     | '/_app/oracle'
-    | '/_app/scan'
     | '/_app/settings'
     | '/_app/stats'
     | '/_app/wishlist'
@@ -236,13 +224,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/scan': {
-      id: '/_app/scan'
-      path: '/scan'
-      fullPath: '/scan'
-      preLoaderRoute: typeof AppScanRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/oracle': {
       id: '/_app/oracle'
       path: '/oracle'
@@ -284,7 +265,6 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppAddRoute: typeof AppAddRoute
   AppOracleRoute: typeof AppOracleRoute
-  AppScanRoute: typeof AppScanRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppStatsRoute: typeof AppStatsRoute
   AppWishlistRoute: typeof AppWishlistRoute
@@ -296,7 +276,6 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAddRoute: AppAddRoute,
   AppOracleRoute: AppOracleRoute,
-  AppScanRoute: AppScanRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppStatsRoute: AppStatsRoute,
   AppWishlistRoute: AppWishlistRoute,

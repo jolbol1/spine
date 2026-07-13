@@ -25,6 +25,8 @@ const searchSchema = z.object({
   importUrl: z.string().optional(),
   /** CEX barcode to auto-import on load (obscure-DVD fallback). */
   cexId: z.string().optional(),
+  /** Open the camera scanner straight away (header Scan shortcut). */
+  scan: z.string().optional(),
 })
 
 export const Route = createFileRoute("/_app/add")({
@@ -101,11 +103,14 @@ function AddFilmPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Add a film</h1>
         <p className="text-muted-foreground text-sm">
-          Search Blu-ray.com or paste a product link to import the full disc
-          details — or fill the form in by hand.
+          Search Blu-ray.com, paste a product link, or scan the disc's
+          barcode to import the full details — or fill the form in by hand.
         </p>
       </div>
-      <BlurayImportBox onImport={applyImport} />
+      <BlurayImportBox
+        onImport={applyImport}
+        autoOpenScanner={prefill.scan != null}
+      />
       {(autoImport.isPending || cexImport.isPending) && (
         <p className="text-muted-foreground flex items-center gap-2 text-sm">
           <Loader2 className="size-4 animate-spin" />

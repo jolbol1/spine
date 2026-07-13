@@ -1,10 +1,12 @@
 import { useMutation } from "@tanstack/react-query"
-import { Link2, Loader2, Search } from "lucide-react"
+import { Link2, Loader2, ScanBarcode, Search } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
+import { BarcodeScanDialog } from "@/components/barcode-scan"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { FilmFormValues } from "@/components/film-form"
+import { emptyFilmValues } from "@/components/film-form"
 import {
   blurayToValues,
   cexIdFromUrl,
@@ -14,6 +16,8 @@ import {
 import { searchBlurayFn, importBlurayUrlFn } from "@/server/bluray"
 import type { BlurayResult } from "@/server/bluray"
 import { importCexFn } from "@/server/cex"
+import type { TmdbTitleMatch } from "@/server/tmdb"
+import { searchWebBarcodeFn } from "@/server/websearch"
 import { scrapeWishlistUrlFn } from "@/server/wishlist"
 
 function looksLikeUrl(value: string): boolean {
@@ -72,13 +76,20 @@ async function importFromUrl(
  */
 export function BlurayImportBox({
   onImport,
+  autoOpenScanner = false,
 }: {
   onImport: (values: FilmFormValues) => void
+  /** Open the camera scanner immediately (e.g. from the header Scan link). */
+  autoOpenScanner?: boolean
 }) {
   const [value, setValue] = useState("")
   const [results, setResults] = useState<BlurayResult[]>([])
+  const [webMatches, setWebMatches] = useState<TmdbTitleMatch[]>([])
   const [open, setOpen] = useState(false)
   const [searching, setSearching] = useState(false)
+  const [scannerOpen, setScannerOpen] = useState(autoOpenScanner)
+  const [scannedCode, setScannedCode] = useState<string | null>(null)
+  const [scanStage, setScanStage] = useState<string | null>(null)
   const boxRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const requestSeq = useRef(0)
@@ -93,13 +104,74 @@ export function BlurayImportBox({
       setOpen(false)
       setValue("")
       setResults([])
-      onImport(result.values)
+      setWebMatches([])
+      onImport({
+        ...result.values,
+        // Imports don't know the barcode that was just scanned — keep it.
+        barcode: result.values.barcode || scannedCode || "",
+      })
       toast.success(
         `Imported “${result.values.title}” from ${result.source}`,
       )
     },
     onError: () => toast.error("Import failed"),
   })
+
+  // Scanned-barcode chain: Blu-ray.com → CEX → web search → manual.
+  const scanLookup = useMutation({
+    mutationFn: async (code: string) => {
+      setScanStage("Searching Blu-ray.com…")
+      const found = await searchBlurayFn({ data: { query: code } })
+      if (found.length > 0) return { kind: "bluray" as const, found }
+
+      setScanStage("Not on Blu-ray.com — trying CEX…")
+      const cex = await importCexFn({ data: { barcode: code } })
+      if (cex.success) return { kind: "cex" as const, data: cex.data }
+
+      setScanStage("Not on CEX either — searching the web…")
+      const web = await searchWebBarcodeFn({ data: { barcode: code } })
+      if (web.success && web.matches.length > 0) {
+        return { kind: "web" as const, matches: web.matches }
+      }
+      return { kind: "miss" as const }
+    },
+    onSuccess: (result, code) => {
+      setScanStage(null)
+      switch (result.kind) {
+        case "bluray":
+          setResults(result.found)
+          setWebMatches([])
+          setOpen(true)
+          break
+        case "cex":
+          onImport(cexToValues(result.data))
+          toast.success(`Imported “${result.data.title}” from CEX`)
+          break
+        case "web":
+          setWebMatches(result.matches)
+          setResults([])
+          setOpen(true)
+          break
+        case "miss":
+          onImport({ ...emptyFilmValues, barcode: code })
+          toast.info(
+            `No match for ${code} anywhere — barcode filled in, add the rest by hand.`,
+          )
+      }
+    },
+    onError: () => {
+      setScanStage(null)
+      toast.error("Barcode lookup failed")
+    },
+  })
+
+  const onScanned = (code: string) => {
+    setScannedCode(code)
+    setValue(code)
+    setResults([])
+    setWebMatches([])
+    scanLookup.mutate(code)
+  }
 
   const isUrl = looksLikeUrl(value)
 
@@ -108,6 +180,11 @@ export function BlurayImportBox({
     const query = value.trim()
     if (isUrl || query.length < 2) {
       setResults([])
+      setSearching(false)
+      return
+    }
+    // A just-scanned barcode runs its own lookup chain — don't double-search.
+    if (query === scannedCode) {
       setSearching(false)
       return
     }
@@ -129,7 +206,7 @@ export function BlurayImportBox({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [value, isUrl])
+  }, [value, isUrl, scannedCode])
 
   // Close the dropdown on outside click.
   useEffect(() => {
@@ -163,16 +240,89 @@ export function BlurayImportBox({
             className="pl-8"
             aria-label="Search Blu-ray.com or paste a product link"
           />
-          {(searching || importUrl.isPending) && (
+          {(searching || importUrl.isPending || scanLookup.isPending) && (
             <Loader2 className="text-muted-foreground absolute top-1/2 right-2.5 size-4 -translate-y-1/2 animate-spin" />
           )}
         </div>
+        <Button
+          type="button"
+          variant="outline"
+          className="gap-2"
+          aria-label="Scan a barcode with the camera"
+          onClick={() => setScannerOpen(true)}
+        >
+          <ScanBarcode className="size-4" />
+          <span className="hidden sm:inline">Scan</span>
+        </Button>
         {isUrl && (
           <Button type="submit" disabled={importUrl.isPending}>
             Import
           </Button>
         )}
       </form>
+
+      {scanStage && (
+        <p className="text-muted-foreground mt-2 flex items-center gap-2 text-sm">
+          <Loader2 className="size-3.5 animate-spin" />
+          {scannedCode && (
+            <span className="text-foreground font-mono">{scannedCode}</span>
+          )}
+          {scanStage}
+        </p>
+      )}
+
+      <BarcodeScanDialog
+        open={scannerOpen}
+        onOpenChange={setScannerOpen}
+        onDetected={onScanned}
+      />
+
+      {open && !isUrl && webMatches.length > 0 && (
+        <ul className="bg-popover absolute z-30 mt-1 max-h-96 w-full overflow-y-auto rounded-md border shadow-xl">
+          <li className="text-muted-foreground px-3 pt-2 pb-1 text-[11px] font-semibold tracking-[0.12em] uppercase">
+            Best matches from a web search — check the year
+          </li>
+          {webMatches.map((match) => (
+            <li key={`${match.mediaType}-${match.tmdbId}`}>
+              <button
+                type="button"
+                className="hover:bg-accent flex w-full items-center gap-3 px-3 py-2 text-left transition-colors"
+                onClick={() => {
+                  setOpen(false)
+                  setWebMatches([])
+                  onImport({
+                    ...emptyFilmValues,
+                    title: match.title,
+                    year: match.year?.toString() ?? "",
+                    coverUrl: match.posterUrl ?? "",
+                    barcode: scannedCode ?? "",
+                    tmdbId: `${match.mediaType}/${match.tmdbId}`,
+                  })
+                }}
+              >
+                {match.posterUrl ? (
+                  <img
+                    src={match.posterUrl}
+                    alt=""
+                    loading="lazy"
+                    className="bg-secondary h-14 w-10 shrink-0 rounded-sm object-cover"
+                  />
+                ) : (
+                  <span className="bg-secondary h-14 w-10 shrink-0 rounded-sm" />
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm">{match.title}</span>
+                  <span className="text-muted-foreground block text-xs">
+                    {[match.year, match.mediaType === "tv" ? "TV" : "Movie"]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {open && !isUrl && results.length > 0 && (
         <ul className="bg-popover absolute z-30 mt-1 max-h-96 w-full overflow-y-auto rounded-md border shadow-xl">

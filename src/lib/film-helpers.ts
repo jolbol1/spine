@@ -55,6 +55,37 @@ export function directorsOf(film: Pick<Film, "director">): string[] {
     .filter(Boolean)
 }
 
+/** Badge colors per disc format — 4K pops, Blu-ray blue, DVD muted. */
+const FORMAT_BADGE_CLASSES: Record<string, string> = {
+  "4K UHD": "bg-lb-orange text-[#1b0f04]",
+  "Blu-ray": "bg-lb-blue text-[#06131b]",
+  DVD: "bg-chart-4 text-[#0b1016]",
+}
+
+export function formatBadgeClass(format: string): string {
+  return FORMAT_BADGE_CLASSES[format] ?? "bg-secondary text-foreground"
+}
+
+/** TMDB budget/revenue figures are USD. */
+export function formatUsdCompact(amount: number): string {
+  return new Intl.NumberFormat("en", {
+    style: "currency",
+    currency: "USD",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(amount)
+}
+
+/** films.price_paid is a numeric column, so it arrives as a string. */
+export function formatPrice(value: string | number | null): string | null {
+  const n = typeof value === "string" ? Number(value) : value
+  if (n == null || !Number.isFinite(n)) return null
+  return new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency: "GBP",
+  }).format(n)
+}
+
 export function formatRuntime(minutes: number): string {
   const h = Math.floor(minutes / 60)
   const m = minutes % 60

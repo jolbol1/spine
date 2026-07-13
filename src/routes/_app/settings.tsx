@@ -23,8 +23,9 @@ import {
   syncLetterboxdFn,
   syncLetterboxdHistoryFn,
 } from "@/server/letterboxd"
+import { syncRottenTomatoesFn } from "@/server/rottentomatoes"
 import { saveSettingsFn } from "@/server/settings"
-import { syncTmdbCastFn } from "@/server/tmdb"
+import { syncTmdbCastFn, syncTmdbDetailsFn } from "@/server/tmdb"
 
 export const Route = createFileRoute("/_app/settings")({
   loader: ({ context }) => context.queryClient.ensureQueryData(settingsQuery),
@@ -100,6 +101,36 @@ function SettingsPage() {
       )
     },
     onError: () => toast.error("TMDB sync failed"),
+  })
+
+  const detailsSync = useMutation({
+    mutationFn: () => syncTmdbDetailsFn(),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ["films"] })
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      toast.success(
+        result.scanned === 0
+          ? "All films already have TMDB details"
+          : `Details fetched for ${result.updated} of ${result.scanned} film${result.scanned === 1 ? "" : "s"}${result.unmatched > 0 ? ` (${result.unmatched} had no TMDB match)` : ""}`,
+      )
+    },
+    onError: () => toast.error("TMDB details sync failed"),
+  })
+
+  const rtSync = useMutation({
+    mutationFn: () => syncRottenTomatoesFn(),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ["films"] })
+      toast.success(
+        result.scanned === 0
+          ? "All films already have Rotten Tomatoes scores"
+          : `Scores fetched for ${result.updated} of ${result.scanned} film${result.scanned === 1 ? "" : "s"}${result.unmatched > 0 ? ` (${result.unmatched} had no match)` : ""}`,
+      )
+    },
+    onError: () => toast.error("Rotten Tomatoes sync failed"),
   })
 
   const spineSync = useMutation({
@@ -215,14 +246,15 @@ function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>TMDB cast data</CardTitle>
+          <CardTitle>TMDB data</CardTitle>
           <CardDescription>
-            Cast is fetched automatically from TMDB when you add a film.
-            Run a backfill to fetch it for films added before TMDB was
-            configured — it powers the "Top actors" stat.
+            Cast and title details (genres, studios, countries, box office,
+            IMDb links) are fetched automatically from TMDB when you add a
+            film. Run the backfills for films added before TMDB was
+            configured — they power the people pages and most stats.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="flex items-center justify-between gap-4">
             <p className="text-muted-foreground text-sm">
               Requires <code>TMDB_API_KEY</code> in <code>.env</code>.
@@ -239,6 +271,57 @@ function SettingsPage() {
                 <RefreshCw className="size-4" />
               )}
               Fetch missing cast
+            </Button>
+          </div>
+          <div className="flex items-center justify-between gap-4 border-t pt-4">
+            <p className="text-muted-foreground text-sm">
+              Genres, production companies, countries, budget &amp; box
+              office, franchise, and the film's IMDb id.
+            </p>
+            <Button
+              variant="secondary"
+              className="shrink-0 gap-2"
+              disabled={detailsSync.isPending}
+              onClick={() => detailsSync.mutate()}
+            >
+              {detailsSync.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <RefreshCw className="size-4" />
+              )}
+              Fetch missing details
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Rotten Tomatoes scores</CardTitle>
+          <CardDescription>
+            Critic and audience scores are scraped from rottentomatoes.com
+            (there's no public API) when you add a film. Run a backfill for
+            the rest — titles that don't match are skipped on later runs, but
+            each film page has a refresh button to retry one.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-muted-foreground text-sm">
+              Roughly a second per film — large collections take a while.
+            </p>
+            <Button
+              variant="secondary"
+              className="gap-2"
+              disabled={rtSync.isPending}
+              onClick={() => rtSync.mutate()}
+            >
+              {rtSync.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <RefreshCw className="size-4" />
+              )}
+              Fetch missing scores
             </Button>
           </div>
         </CardContent>

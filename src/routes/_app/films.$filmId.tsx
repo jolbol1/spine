@@ -8,9 +8,12 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  Loader2,
   Pencil,
+  RefreshCw,
   RotateCcw,
   Trash2,
+  TriangleAlert,
 } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -29,6 +32,8 @@ import {
 import { Separator } from "@/components/ui/separator"
 import {
   directorsOf,
+  formatBadgeClass,
+  formatPrice,
   formatRuntime,
   isWatched,
   resolutionOf,
@@ -39,6 +44,8 @@ import {
   setWatchedOverrideFn,
   updateFilmFn,
 } from "@/server/films"
+import { refreshRtScoresFn } from "@/server/rottentomatoes"
+import { rematchTmdbFn } from "@/server/tmdb"
 
 export const Route = createFileRoute("/_app/films/$filmId")({
   loader: ({ context, params }) =>
@@ -71,7 +78,11 @@ function FilmDetailPage() {
 
   const update = useMutation({
     mutationFn: updateFilmFn,
-    onSuccess: async () => {
+    onSuccess: async (result) => {
+      if (result && "error" in result) {
+        toast.error(result.error)
+        return
+      }
       await invalidate()
       setEditing(false)
       toast.success("Film updated")
@@ -83,6 +94,34 @@ function FilmDetailPage() {
     mutationFn: setWatchedOverrideFn,
     onSuccess: invalidate,
     onError: () => toast.error("Could not update watched state"),
+  })
+
+  const rematch = useMutation({
+    mutationFn: rematchTmdbFn,
+    onSuccess: async (result) => {
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      await invalidate()
+      toast.success(`Matched on TMDB — ${result.castCount} cast members added`)
+    },
+    onError: () => toast.error("TMDB lookup failed"),
+  })
+
+  const rtRefresh = useMutation({
+    mutationFn: refreshRtScoresFn,
+    onSuccess: async (result) => {
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      await invalidate()
+      toast.success(
+        `Rotten Tomatoes — critics ${result.criticsScore ?? "–"}%, audience ${result.audienceScore ?? "–"}%`,
+      )
+    },
+    onError: () => toast.error("Could not reach Rotten Tomatoes"),
   })
 
   const remove = useMutation({
@@ -155,7 +194,9 @@ function FilmDetailPage() {
             </p>
           )}
           <div className="flex flex-wrap gap-1.5 pt-1">
-            <Badge variant="secondary">{film.format}</Badge>
+            <Badge className={formatBadgeClass(film.format)}>
+              {film.format}
+            </Badge>
             {film.hdr && <Badge variant="secondary">{film.hdr}</Badge>}
             {film.spineNumber != null && (
               <Badge className="bg-lb-blue text-[#06131b]">
@@ -171,8 +212,86 @@ function FilmDetailPage() {
                 <EyeOff className="size-3" /> Unwatched
               </Badge>
             )}
+            {(film.rtCriticsScore != null ||
+              film.rtAudienceScore != null) && (
+              <a
+                href={film.rtUrl ?? undefined}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex gap-1.5"
+                title="View on Rotten Tomatoes"
+              >
+                {film.rtCriticsScore != null && (
+                  <Badge
+                    className={
+                      film.rtCriticsScore >= 60
+                        ? "bg-[#e01e26] text-white"
+                        : "bg-[#6a7f10] text-white"
+                    }
+                  >
+                    🍅 {film.rtCriticsScore}%
+                  </Badge>
+                )}
+                {film.rtAudienceScore != null && (
+                  <Badge className="bg-lb-orange text-[#1b0f04]">
+                    🍿 {film.rtAudienceScore}%
+                  </Badge>
+                )}
+              </a>
+            )}
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground inline-flex items-center transition-colors disabled:opacity-50"
+              title={
+                film.rtSyncedAt
+                  ? "Refresh Rotten Tomatoes scores"
+                  : "Fetch Rotten Tomatoes scores"
+              }
+              aria-label="Refresh Rotten Tomatoes scores"
+              disabled={rtRefresh.isPending}
+              onClick={() => rtRefresh.mutate({ data: { id: film.id } })}
+            >
+              <RefreshCw
+                className={`size-3.5 ${rtRefresh.isPending ? "animate-spin" : ""}`}
+              />
+            </button>
           </div>
+          {film.tmdbDetails && film.tmdbDetails.genres.length > 0 && (
+            <p className="text-muted-foreground pt-1 text-sm">
+              {film.tmdbDetails.genres.join(" · ")}
+            </p>
+          )}
         </div>
+
+        {film.tmdbId == null && (
+          <div className="border-lb-orange/40 bg-lb-orange/10 flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4">
+            <div className="flex items-start gap-2.5">
+              <TriangleAlert className="text-lb-orange mt-0.5 size-4 shrink-0" />
+              <div>
+                <p className="text-sm font-medium">No TMDB match</p>
+                <p className="text-muted-foreground text-xs">
+                  Cast, genres, studio, and the IMDb link are missing because
+                  this title wasn't found on TMDB. Check the title and year
+                  (Edit), then retry.
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="gap-1.5"
+              disabled={rematch.isPending}
+              onClick={() => rematch.mutate({ data: { id: film.id } })}
+            >
+              {rematch.isPending ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="size-3.5" />
+              )}
+              Retry match
+            </Button>
+          </div>
+        )}
 
         {/* Watched control */}
         <div className="rounded-lg border bg-card p-4">
@@ -203,6 +322,38 @@ function FilmDetailPage() {
               </p>
             </div>
             <div className="flex gap-2">
+              {film.tmdbId != null && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  render={
+                    <a
+                      href={`https://www.themoviedb.org/${film.tmdbMediaType === "tv" ? "tv" : "movie"}/${film.tmdbId}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    />
+                  }
+                >
+                  <ExternalLink className="size-3.5" /> TMDB
+                </Button>
+              )}
+              {film.tmdbDetails?.imdbId && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  render={
+                    <a
+                      href={`https://www.imdb.com/title/${film.tmdbDetails.imdbId}/`}
+                      target="_blank"
+                      rel="noreferrer"
+                    />
+                  }
+                >
+                  <ExternalLink className="size-3.5" /> IMDb
+                </Button>
+              )}
               {film.letterboxdUri && (
                 <Button
                   size="sm"
@@ -272,6 +423,17 @@ function FilmDetailPage() {
               value={film.discCount > 1 ? film.discCount : null}
             />
             <MetaRow label="Barcode" value={film.barcode} />
+            <MetaRow label="Price paid" value={formatPrice(film.pricePaid)} />
+            <MetaRow
+              label="Studio"
+              value={film.tmdbDetails?.productionCompanies
+                .slice(0, 3)
+                .join(", ")}
+            />
+            <MetaRow
+              label="Country"
+              value={film.tmdbDetails?.productionCountries.join(", ")}
+            />
             <MetaRow
               label="Added"
               value={new Date(film.createdAt).toLocaleDateString()}

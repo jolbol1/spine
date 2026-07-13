@@ -1,8 +1,21 @@
 import { Link } from "@tanstack/react-router"
 import { Eye } from "lucide-react"
 import type { Film } from "@/db/schema"
-import { isWatched } from "@/lib/film-helpers"
+import { formatBadgeClass, isWatched } from "@/lib/film-helpers"
 import { cn } from "@/lib/utils"
+
+export function FormatBadge({ format }: { format: string }) {
+  return (
+    <span
+      className={cn(
+        "rounded-sm px-1 py-px text-[9px] font-bold tracking-wide uppercase",
+        formatBadgeClass(format),
+      )}
+    >
+      {format}
+    </span>
+  )
+}
 
 export function PosterFrame({
   coverUrl,
@@ -38,7 +51,17 @@ export function PosterFrame({
   )
 }
 
-export function FilmCard({ film }: { film: Film }) {
+export function FilmCard({
+  film,
+  overlay,
+  subtext,
+}: {
+  film: Film
+  /** Extra chip(s) rendered over the poster's top-right corner. */
+  overlay?: React.ReactNode
+  /** Extra value in the caption — e.g. the metric the grid is sorted by. */
+  subtext?: string | null
+}) {
   const watched = isWatched(film)
   return (
     <Link
@@ -57,6 +80,11 @@ export function FilmCard({ film }: { film: Film }) {
             #{film.spineNumber}
           </span>
         )}
+        {overlay && (
+          <span className="absolute top-1.5 right-1.5 flex flex-col items-end gap-1">
+            {overlay}
+          </span>
+        )}
         {watched && (
           <span
             title="Watched"
@@ -70,8 +98,14 @@ export function FilmCard({ film }: { film: Film }) {
         <p className="truncate text-sm leading-tight font-medium">
           {film.title}
         </p>
-        <p className="truncate text-xs text-muted-foreground">
-          {[film.year, film.format].filter(Boolean).join(" · ")}
+        <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+          {film.year != null && <span>{film.year}</span>}
+          <FormatBadge format={film.format} />
+          {subtext && (
+            <span className="text-foreground ml-auto font-medium tabular-nums">
+              {subtext}
+            </span>
+          )}
         </p>
       </div>
     </Link>

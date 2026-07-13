@@ -44,6 +44,8 @@ export interface FilmFormValues {
   barcode: string
   coverUrl: string
   notes: string
+  pricePaid: string
+  tmdbId: string
 }
 
 export const emptyFilmValues: FilmFormValues = {
@@ -63,6 +65,8 @@ export const emptyFilmValues: FilmFormValues = {
   barcode: "",
   coverUrl: "",
   notes: "",
+  pricePaid: "",
+  tmdbId: "",
 }
 
 export function filmToValues(film: Film): FilmFormValues {
@@ -83,12 +87,43 @@ export function filmToValues(film: Film): FilmFormValues {
     barcode: film.barcode ?? "",
     coverUrl: film.coverUrl ?? "",
     notes: film.notes ?? "",
+    pricePaid: film.pricePaid ?? "",
+    tmdbId:
+      film.tmdbId != null
+        ? `${film.tmdbMediaType ?? "movie"}/${film.tmdbId}`
+        : "",
   }
 }
 
 const toInt = (s: string) => {
   const n = Number.parseInt(s, 10)
   return Number.isFinite(n) ? n : null
+}
+
+const toPrice = (s: string) => {
+  const n = Number.parseFloat(s.replace(/[£$€,\s]/g, ""))
+  return Number.isFinite(n) && n >= 0 ? n : null
+}
+
+/**
+ * Parse a manual TMDB reference. Movie and TV ids collide on TMDB, so the
+ * field accepts "tv/60573", "movie/603", a full themoviedb.org URL, or a
+ * bare id (movie assumed first server-side).
+ */
+function parseTmdbRef(s: string): {
+  tmdbId: number | null
+  tmdbMediaType: "movie" | "tv" | null
+} {
+  const trimmed = s.trim()
+  const typed = /(?:themoviedb\.org\/)?\b(movie|tv)\/(\d+)/.exec(trimmed)
+  if (typed) {
+    return {
+      tmdbId: Number(typed[2]),
+      tmdbMediaType: typed[1] as "movie" | "tv",
+    }
+  }
+  const id = toInt(trimmed)
+  return { tmdbId: id != null && id > 0 ? id : null, tmdbMediaType: null }
 }
 
 /** Convert form values to the server function input shape. */
@@ -110,6 +145,8 @@ export function valuesToInput(v: FilmFormValues) {
     barcode: v.barcode || null,
     coverUrl: v.coverUrl || null,
     notes: v.notes || null,
+    pricePaid: toPrice(v.pricePaid),
+    ...parseTmdbRef(v.tmdbId),
   }
 }
 
@@ -383,6 +420,28 @@ export function FilmForm({
               inputMode="numeric"
               value={values.barcode}
               onChange={input("barcode")}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="pricePaid">Price paid</FieldLabel>
+            <Input
+              id="pricePaid"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step="0.01"
+              placeholder="e.g. 14.99"
+              value={values.pricePaid}
+              onChange={input("pricePaid")}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="tmdbId">TMDB ID or URL</FieldLabel>
+            <Input
+              id="tmdbId"
+              placeholder="e.g. tv/60573 — fixes a wrong match"
+              value={values.tmdbId}
+              onChange={input("tmdbId")}
             />
           </Field>
         </div>
