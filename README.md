@@ -1,6 +1,17 @@
-# Spine
+<div align="center">
+  <img src="public/favicon.svg" alt="Spine logo" width="104" />
+  <h1>Spine</h1>
+  <p><strong>Your physical media, catalogued.</strong></p>
+  <p>A Letterboxd-inspired, self-hosted collection tracker for Blu-ray, 4K UHD, and DVD.</p>
+</div>
 
-Track your physical media collection — Letterboxd-inspired, self-hosted.
+<p align="center">
+  <img src="docs/assets/screenshots/collection.jpg" alt="Spine collection view" />
+</p>
+
+<p align="center"><sub>Search, filter, and browse your shelf by title, format, or Criterion spine number.</sub></p>
+
+## Features
 
 - 🎬 Rich metadata per disc: director, year, format, audio, HDR, region, publisher, package type, edition, runtime, disc count, barcode
 - 🔍 Search and browse by title, alphabetically (A–Z rail), or by Criterion spine number
@@ -15,6 +26,45 @@ Track your physical media collection — Letterboxd-inspired, self-hosted.
 - 👤 Person pages — click any actor or director anywhere to see everything of theirs in your collection, directing and acting credits on one page
 - 🏛️ Auto Criterion spine numbers — matched against criterion.com's release list on add and via a Settings backfill
 - 🔐 better-auth email/password + real Postgres row-level security
+
+## See it in action
+
+### Rich title details
+
+Keep technical disc metadata, cast, watched state, and Letterboxd activity together on one page.
+
+![Dune title details in Spine](docs/assets/screenshots/film-detail.jpg)
+
+### A wishlist that does the data entry
+
+Paste a supported retailer or Blu-ray.com URL to fetch release details, track prices, and move purchases into the collection.
+
+![Spine wishlist with imported releases](docs/assets/screenshots/wishlist.jpg)
+
+### Shelf analytics
+
+See collection totals, watched progress, formats, regions, decades, runtimes, directors, actors, and publishers at a glance.
+
+![Spine collection statistics](docs/assets/screenshots/stats.jpg)
+
+### The Oracle
+
+Filter by watched state, format, and runtime, then let Spine choose tonight's film from your own shelf.
+
+![The Oracle choosing a film](docs/assets/screenshots/oracle.jpg)
+
+### Scan or import in seconds
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/assets/screenshots/scan.jpg" alt="Barcode scanner in Spine" /></td>
+    <td width="50%"><img src="docs/assets/screenshots/add-film.jpg" alt="Add a film form in Spine" /></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Camera or UPC/EAN lookup</strong></td>
+    <td align="center"><strong>Search, paste a link, or add manually</strong></td>
+  </tr>
+</table>
 
 ## Stack
 
