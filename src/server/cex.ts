@@ -29,6 +29,10 @@ interface CexBox {
   attributeInfo?: CexAttribute[] | null
 }
 
+interface CexResponse {
+  response?: { data?: { boxDetails?: CexBox[] } }
+}
+
 /** "Simpsons Movie, The (PG)" → "The Simpsons Movie" */
 function cleanCexTitle(name: string): string {
   let title = name.replace(/\s*\((U|PG|12A?|15|18|E|R18|TBC)\)\s*$/i, "").trim()
@@ -46,6 +50,41 @@ function attributeValue(box: CexBox, name: string): string | null {
   return value && value !== "Not Known" ? value : null
 }
 
+/** Convert CEX's box-detail wire payload into the import boundary shape. */
+export function parseCexResponse(
+  payload: CexResponse,
+  barcode: string
+): CexImport | null {
+  const box = payload.response?.data?.boxDetails?.[0]
+  if (!box?.boxName) return null
+
+  const category = `${box.superCatName ?? ""} ${box.categoryName ?? ""}`
+  const format = /4k|uhd/i.test(category)
+    ? ("4K UHD" as const)
+    : /blu-?ray/i.test(category)
+      ? ("Blu-ray" as const)
+      : ("DVD" as const)
+
+  const year = attributeValue(box, "year_of_production")
+  const duration = attributeValue(box, "duration")
+  const genre = attributeValue(box, "genre")
+  const rawCover = box.imageUrls?.large ?? null
+
+  return {
+    title: cleanCexTitle(box.boxName),
+    year: year ? Number(year) || null : null,
+    format,
+    runtimeMinutes: duration ? Number(duration) || null : null,
+    label: attributeValue(box, "imprint"),
+    bbfcRating: attributeValue(box, "cert_uk"),
+    genres: genre ? genre.split(", ") : [],
+    publisher: attributeValue(box, "publisher"),
+    supplier: attributeValue(box, "supplier"),
+    coverUrl: rawCover ? encodeURI(rawCover) : null,
+    barcode,
+  }
+}
+
 /**
  * Look a barcode up on CEX (uk.webuy.com) — good coverage of older DVDs
  * that Blu-ray.com doesn't list. Uses their public box-detail API.
@@ -54,7 +93,7 @@ export const importCexFn = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(z.object({ barcode: z.string().trim().min(5).max(20) }))
   .handler(async ({ data }) => {
-    let box: CexBox | undefined
+    let payload: CexResponse
     try {
       const res = await fetch(
         `https://wss2.cex.uk.webuy.io/v3/boxes/${encodeURIComponent(data.barcode)}/detail`,
@@ -72,44 +111,18 @@ export const importCexFn = createServerFn({ method: "POST" })
               : `CEX returned ${res.status}.`,
         }
       }
-      const payload = (await res.json()) as {
-        response?: { data?: { boxDetails?: CexBox[] } }
-      }
-      box = payload.response?.data?.boxDetails?.[0]
+      payload = (await res.json()) as CexResponse
     } catch {
       return { success: false as const, error: "Could not reach CEX." }
     }
 
-    if (!box?.boxName) {
+    const parsedData = parseCexResponse(payload, data.barcode)
+    if (!parsedData) {
       return { success: false as const, error: "Not found on CEX either." }
     }
 
-    const category = `${box.superCatName ?? ""} ${box.categoryName ?? ""}`
-    const format = /4k|uhd/i.test(category)
-      ? ("4K UHD" as const)
-      : /blu-?ray/i.test(category)
-        ? ("Blu-ray" as const)
-        : ("DVD" as const)
-
-    const year = attributeValue(box, "year_of_production")
-    const duration = attributeValue(box, "duration")
-    const genre = attributeValue(box, "genre")
-    const rawCover = box.imageUrls?.large ?? null
-
     return {
       success: true as const,
-      data: {
-        title: cleanCexTitle(box.boxName),
-        year: year ? Number(year) || null : null,
-        format,
-        runtimeMinutes: duration ? Number(duration) || null : null,
-        label: attributeValue(box, "imprint"),
-        bbfcRating: attributeValue(box, "cert_uk"),
-        genres: genre ? genre.split(", ") : [],
-        publisher: attributeValue(box, "publisher"),
-        supplier: attributeValue(box, "supplier"),
-        coverUrl: rawCover ? encodeURI(rawCover) : null,
-        barcode: data.barcode,
-      } satisfies CexImport,
+      data: parsedData,
     }
   })

@@ -21,6 +21,34 @@ function decodeEntities(s: string): string {
     .replace(/&gt;/g, ">")
 }
 
+interface BluraySearchResponse {
+  items?: Array<{
+    title?: string
+    year?: string
+    url?: string
+    cover?: string
+    flag?: string
+    reldate?: string
+  }>
+}
+
+/** Convert the quicksearch wire response into the app's stable result shape. */
+export function parseBluraySearchResponse(
+  json: BluraySearchResponse
+): BlurayResult[] {
+  return (json.items ?? [])
+    .filter((item) => item.title && item.url && item.cover)
+    .slice(0, 24)
+    .map((item) => ({
+      title: decodeEntities(item.title!),
+      year: item.year ? Number(item.year) || null : null,
+      url: item.url!.replace("://m.blu-ray.com", "://www.blu-ray.com"),
+      coverUrl: item.cover!.replace("_small.jpg", "_front.jpg"),
+      countryFlag: item.flag ?? null,
+      releaseDate: item.reldate ?? null,
+    }))
+}
+
 /**
  * Search blu-ray.com's quicksearch API (also matches UPC barcodes).
  * Small covers are upgraded to the full-size `_front.jpg` variant.
@@ -34,16 +62,7 @@ export const searchBlurayFn = createServerFn({ method: "GET" })
     url.searchParams.set("country", "all")
     url.searchParams.set("keyword", data.query)
 
-    let json: {
-      items?: Array<{
-        title?: string
-        year?: string
-        url?: string
-        cover?: string
-        flag?: string
-        reldate?: string
-      }>
-    }
+    let json: BluraySearchResponse
     try {
       const res = await fetch(url, {
         headers: {
@@ -58,17 +77,7 @@ export const searchBlurayFn = createServerFn({ method: "GET" })
       return []
     }
 
-    return (json.items ?? [])
-      .filter((item) => item.title && item.url && item.cover)
-      .slice(0, 24)
-      .map((item) => ({
-        title: decodeEntities(item.title!),
-        year: item.year ? Number(item.year) || null : null,
-        url: item.url!.replace("://m.blu-ray.com", "://www.blu-ray.com"),
-        coverUrl: item.cover!.replace("_small.jpg", "_front.jpg"),
-        countryFlag: item.flag ?? null,
-        releaseDate: item.reldate ?? null,
-      }))
+    return parseBluraySearchResponse(json)
   })
 
 // ---------------------------------------------------------------------------
@@ -102,6 +111,69 @@ const DISC_WORDS: Record<string, number> = {
   eight: 8,
   nine: 9,
   ten: 10,
+}
+
+/** Parse the stable metadata fields from a Blu-ray.com product-page fixture. */
+export function parseBlurayProductHtml(
+  html: string,
+  parsed: URL
+): BlurayImport {
+  const first = (re: RegExp): string | null => {
+    const match = html.match(re)
+    return match ? match[1].trim() : null
+  }
+
+  const rawTitle = first(/<title>([^<]+)<\/title>/) ?? ""
+  const title = decodeEntities(rawTitle)
+    .replace(/\s+(4K\s+)?(Blu-ray|DVD).*$/i, "")
+    .replace(/\s*\([^)]*\)\s*$/, "")
+    .trim()
+
+  const resolution = first(/Resolution:\s*([^<]+)/)
+  const is4k =
+    /4K Blu-ray/i.test(rawTitle) || (resolution?.includes("2160") ?? false)
+  const isDvd = /\/dvd\//.test(parsed.pathname) || /\bDVD\b/.test(rawTitle)
+  const format = is4k
+    ? ("4K UHD" as const)
+    : isDvd
+      ? ("DVD" as const)
+      : ("Blu-ray" as const)
+
+  const year = first(/movies\.php\?year=(\d{4})/)
+  const runtime = first(/>(\d+)\s+min</)
+  const director = first(/Director:\s*<a[^>]*>([^<]+)<\/a>/)
+  const label = first(/movies\.php\?studioid=\d+[^>]*>([^<]+)</)
+  const audioBlock = first(/<div id="shortaudio">\s*([^<]+)/)
+  const audioLine =
+    audioBlock && !/^TBA$/i.test(audioBlock)
+      ? audioBlock.split("\n")[0].trim()
+      : null
+  const hdrLine = first(/HDR:?\s*(Dolby Vision[^<]*|HDR10\+?[^<]*)/)
+  const region = first(/Region\s+([A-C](?:,\s*[A-C])*|Free)\b/)
+  const spine = first(/Spine\s*#?\s*(\d+)/i)
+  const cover = first(/property="og:image" content="([^"]+)"/)
+
+  let discCount = 1
+  const discWord = first(
+    /\b(Single|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)-disc\b/i
+  )
+  if (discWord) discCount = DISC_WORDS[discWord.toLowerCase()] ?? 1
+
+  return {
+    title: title || decodeEntities(rawTitle),
+    year: year ? Number(year) : null,
+    director: director ? decodeEntities(director) : null,
+    format,
+    audio: audioLine ? decodeEntities(audioLine).trim() : null,
+    hdr: hdrLine ? decodeEntities(hdrLine).trim() : null,
+    region: region ?? null,
+    label: label ? decodeEntities(label) : null,
+    spineNumber: spine ? Number(spine) : null,
+    runtimeMinutes: runtime ? Number(runtime) : null,
+    discCount,
+    coverUrl: cover?.replace("_large.jpg", "_front.jpg") ?? null,
+    url: parsed.toString(),
+  }
 }
 
 /**
@@ -154,65 +226,8 @@ export const importBlurayUrlFn = createServerFn({ method: "POST" })
       return { success: false as const, error: "Could not reach Blu-ray.com." }
     }
 
-    const first = (re: RegExp): string | null => {
-      const m = html.match(re)
-      return m ? m[1].trim() : null
-    }
-
-    const rawTitle = first(/<title>([^<]+)<\/title>/) ?? ""
-    const title = decodeEntities(rawTitle)
-      .replace(/\s+(4K\s+)?(Blu-ray|DVD).*$/i, "")
-      .replace(/\s*\([^)]*\)\s*$/, "")
-      .trim()
-
-    const resolution = first(/Resolution:\s*([^<]+)/)
-    const is4k =
-      /4K Blu-ray/i.test(rawTitle) || (resolution?.includes("2160") ?? false)
-    const isDvd = /\/dvd\//.test(parsed.pathname) || /\bDVD\b/.test(rawTitle)
-    const format = is4k
-      ? ("4K UHD" as const)
-      : isDvd
-        ? ("DVD" as const)
-        : ("Blu-ray" as const)
-
-    const year = first(/movies\.php\?year=(\d{4})/)
-    const runtime = first(/>(\d+)\s+min</)
-    const director = first(/Director:\s*<a[^>]*>([^<]+)<\/a>/)
-    const label = first(/movies\.php\?studioid=\d+[^>]*>([^<]+)</)
-    // The page has a dedicated audio block; "TBA" means not yet listed.
-    // Content is followed by <br> tags, so capture up to the first tag.
-    const audioBlock = first(/<div id="shortaudio">\s*([^<]+)/)
-    const audioLine =
-      audioBlock && !/^TBA$/i.test(audioBlock)
-        ? audioBlock.split("\n")[0].trim()
-        : null
-    const hdrLine = first(/HDR:?\s*(Dolby Vision[^<]*|HDR10\+?[^<]*)/)
-    const region = first(/Region\s+([A-C](?:,\s*[A-C])*|Free)\b/)
-    const spine = first(/Spine\s*#?\s*(\d+)/i)
-    const cover = first(/property="og:image" content="([^"]+)"/)
-
-    let discCount = 1
-    const discWord = first(
-      /\b(Single|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten)-disc\b/i
-    )
-    if (discWord) discCount = DISC_WORDS[discWord.toLowerCase()] ?? 1
-
     return {
       success: true as const,
-      data: {
-        title: title || decodeEntities(rawTitle),
-        year: year ? Number(year) : null,
-        director: director ? decodeEntities(director) : null,
-        format,
-        audio: audioLine ? decodeEntities(audioLine).trim() : null,
-        hdr: hdrLine ? decodeEntities(hdrLine).trim() : null,
-        region: region ?? null,
-        label: label ? decodeEntities(label) : null,
-        spineNumber: spine ? Number(spine) : null,
-        runtimeMinutes: runtime ? Number(runtime) : null,
-        discCount,
-        coverUrl: cover?.replace("_large.jpg", "_front.jpg") ?? null,
-        url: parsed.toString(),
-      } satisfies BlurayImport,
+      data: parseBlurayProductHtml(html, parsed),
     }
   })

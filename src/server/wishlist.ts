@@ -36,7 +36,7 @@ const ALLOWED_DOMAINS = [
   "blu-ray.com",
 ]
 
-function detectRetailer(url: string): string {
+export function detectRetailer(url: string): string {
   const u = url.toLowerCase()
   if (u.includes("hmv.com")) return "HMV"
   if (u.includes("zavvi.com")) return "Zavvi"
@@ -73,7 +73,7 @@ function detectRetailer(url: string): string {
 }
 
 /** Find the product price, not promotional banner prices. */
-function extractPrice(markdown: string, title: string): string | null {
+export function extractPrice(markdown: string, title: string): string | null {
   if (title) {
     const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
     const afterTitlePattern = new RegExp(
