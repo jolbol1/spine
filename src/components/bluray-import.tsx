@@ -93,6 +93,7 @@ export function BlurayImportBox({
   const boxRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const requestSeq = useRef(0)
+  const scanAbortRef = useRef<AbortController | null>(null)
 
   const importUrl = useMutation({
     mutationFn: importFromUrl,
@@ -116,24 +117,36 @@ export function BlurayImportBox({
   })
 
   // Scanned-barcode chain: Blu-ray.com → CEX → web search → manual.
+  // A re-scan aborts the in-flight chain so a slow lookup for a misread
+  // barcode can never land after — and override — the newer scan.
   const scanLookup = useMutation({
-    mutationFn: async (code: string) => {
+    mutationFn: async ({
+      code,
+      signal,
+    }: {
+      code: string
+      signal: AbortSignal
+    }) => {
       setScanStage("Searching Blu-ray.com…")
-      const found = await searchBlurayFn({ data: { query: code } })
+      const found = await searchBlurayFn({ data: { query: code }, signal })
       if (found.length > 0) return { kind: "bluray" as const, found }
 
+      signal.throwIfAborted()
       setScanStage("Not on Blu-ray.com — trying CEX…")
-      const cex = await importCexFn({ data: { barcode: code } })
+      const cex = await importCexFn({ data: { barcode: code }, signal })
       if (cex.success) return { kind: "cex" as const, data: cex.data }
 
+      signal.throwIfAborted()
       setScanStage("Not on CEX either — searching the web…")
-      const web = await searchWebBarcodeFn({ data: { barcode: code } })
+      const web = await searchWebBarcodeFn({ data: { barcode: code }, signal })
       if (web.success && web.matches.length > 0) {
         return { kind: "web" as const, matches: web.matches }
       }
       return { kind: "miss" as const }
     },
-    onSuccess: (result, code) => {
+    onSuccess: (result, { code, signal }) => {
+      // A newer scan superseded this one while it was resolving.
+      if (signal.aborted) return
       setScanStage(null)
       switch (result.kind) {
         case "bluray":
@@ -157,18 +170,23 @@ export function BlurayImportBox({
           )
       }
     },
-    onError: () => {
+    onError: (_error, { signal }) => {
+      // Aborted by a re-scan — the newer chain owns the UI now.
+      if (signal.aborted) return
       setScanStage(null)
       toast.error("Barcode lookup failed")
     },
   })
 
   const onScanned = (code: string) => {
+    scanAbortRef.current?.abort()
+    const controller = new AbortController()
+    scanAbortRef.current = controller
     setScannedCode(code)
     setValue(code)
     setResults([])
     setWebMatches([])
-    scanLookup.mutate(code)
+    scanLookup.mutate({ code, signal: controller.signal })
   }
 
   const isUrl = looksLikeUrl(value)
