@@ -245,9 +245,21 @@ export const importBlurayUrlFn = createServerFn({ method: "POST" })
       // Blu-ray.com serves ISO-8859-1; fetch's .text() would assume UTF-8
       // and mangle accented names. Sniff the meta charset and decode right.
       const bytes = await res.arrayBuffer()
-      const sniff = new TextDecoder("latin1").decode(bytes.slice(0, 2048))
+      const sniff = new TextDecoder("latin1").decode(bytes.slice(0, 4096))
       const charset = sniff.match(/charset=["']?([\w-]+)/i)?.[1] ?? "iso-8859-1"
-      html = new TextDecoder(charset).decode(bytes)
+      let decoder: TextDecoder
+      try {
+        decoder = new TextDecoder(charset)
+      } catch {
+        // The sniff window can cut the label mid-token ("ISO-88") — the
+        // site is ISO-8859-1 in practice, so fall back rather than fail.
+        log.warn("unknown charset label, falling back to iso-8859-1", {
+          url: parsed.toString(),
+          charset,
+        })
+        decoder = new TextDecoder("iso-8859-1")
+      }
+      html = decoder.decode(bytes)
     } catch (err) {
       log.error("product page unreachable", {
         url: parsed.toString(),
