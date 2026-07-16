@@ -4,7 +4,10 @@ import { z } from "zod"
 import { films, withUser } from "@/db"
 import type { CastMember, TmdbDetails } from "@/db/schema"
 import { env } from "@/env"
+import { errorMessage, serverLogger } from "@/server/log"
 import { authMiddleware } from "@/server/middleware"
+
+const log = serverLogger("tmdb")
 
 const TMDB_BASE = "https://api.themoviedb.org/3"
 const CAST_LIMIT = 12
@@ -162,8 +165,13 @@ export async function fetchTmdbById(
           : null,
         details: parseDetails(detail),
       }
-    } catch {
+    } catch (err) {
       // Try the next media type.
+      log.warn("id lookup failed", {
+        tmdbId,
+        mediaType,
+        error: errorMessage(err),
+      })
     }
   }
   return null
@@ -183,9 +191,21 @@ export async function fetchTmdbDetails(
     const res = await tmdbFetch(`/${mediaType}/${tmdbId}`, {
       append_to_response: `external_ids,${certificationAppend(mediaType)}`,
     })
-    if (!res.ok) return null
+    if (!res.ok) {
+      log.warn("details fetch failed", {
+        tmdbId,
+        mediaType,
+        status: res.status,
+      })
+      return null
+    }
     return parseDetails((await res.json()) as TmdbDetailPayload)
-  } catch {
+  } catch (err) {
+    log.error("details fetch unreachable", {
+      tmdbId,
+      mediaType,
+      error: errorMessage(err),
+    })
     return null
   }
 }
@@ -255,7 +275,8 @@ export async function fetchTmdbCast(
         : null,
       details: await fetchTmdbDetails(match.id, mediaType),
     }
-  } catch {
+  } catch (err) {
+    log.error("cast search unreachable", { title, error: errorMessage(err) })
     return null
   }
 }
@@ -306,7 +327,8 @@ export async function searchTmdbTitles(
             : null,
         }
       })
-  } catch {
+  } catch (err) {
+    log.error("title search unreachable", { query, error: errorMessage(err) })
     return []
   }
 }
@@ -535,7 +557,11 @@ export const getPersonImdbFn = createServerFn({ method: "GET" })
       if (!idsRes.ok) return { imdbId: null, tmdbPersonId: personId }
       const ids = (await idsRes.json()) as { imdb_id?: string | null }
       return { imdbId: ids.imdb_id ?? null, tmdbPersonId: personId }
-    } catch {
+    } catch (err) {
+      log.error("person lookup unreachable", {
+        name: data.name,
+        error: errorMessage(err),
+      })
       return { imdbId: null, tmdbPersonId: null }
     }
   })

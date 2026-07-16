@@ -2,9 +2,12 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 import { env } from "@/env"
 import { dedupeTmdbTitleMatches } from "@/lib/tmdb-title-matches"
+import { errorMessage, serverLogger } from "@/server/log"
 import { authMiddleware } from "@/server/middleware"
 import { searchTmdbTitles } from "@/server/tmdb"
 import type { TmdbTitleMatch } from "@/server/tmdb"
+
+const log = serverLogger("websearch")
 
 /**
  * Reduce a shop/search-result page title to a plausible film title.
@@ -58,13 +61,22 @@ export const searchWebBarcodeFn = createServerFn({ method: "POST" })
         error?: string
       }
       if (!res.ok) {
+        log.warn("barcode search failed", {
+          barcode: data.barcode,
+          status: res.status,
+          error: payload.error,
+        })
         return {
           success: false as const,
           error: payload.error ?? "Web search failed.",
         }
       }
       results = payload.data ?? []
-    } catch {
+    } catch (err) {
+      log.error("barcode search unreachable", {
+        barcode: data.barcode,
+        error: errorMessage(err),
+      })
       return { success: false as const, error: "Web search unreachable." }
     }
 
@@ -85,6 +97,10 @@ export const searchWebBarcodeFn = createServerFn({ method: "POST" })
       .map((c) => c.title)
 
     if (candidates.length === 0) {
+      log.info("no usable titles in results", {
+        barcode: data.barcode,
+        results: results.length,
+      })
       return {
         success: false as const,
         error: "The web search didn't surface a usable title.",
@@ -101,5 +117,10 @@ export const searchWebBarcodeFn = createServerFn({ method: "POST" })
       if (matches.length >= 8) break
     }
 
+    log.info("barcode search", {
+      barcode: data.barcode,
+      candidates,
+      matches: matches.length,
+    })
     return { success: true as const, candidates, matches: matches.slice(0, 8) }
   })

@@ -1,6 +1,9 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
+import { errorMessage, serverLogger } from "@/server/log"
 import { authMiddleware } from "@/server/middleware"
+
+const log = serverLogger("cex")
 
 export interface CexImport {
   title: string
@@ -103,6 +106,10 @@ export const importCexFn = createServerFn({ method: "POST" })
         }
       )
       if (!res.ok) {
+        log.warn("box lookup failed", {
+          barcode: data.barcode,
+          status: res.status,
+        })
         return {
           success: false as const,
           error:
@@ -112,15 +119,21 @@ export const importCexFn = createServerFn({ method: "POST" })
         }
       }
       payload = (await res.json()) as CexResponse
-    } catch {
+    } catch (err) {
+      log.error("box lookup unreachable", {
+        barcode: data.barcode,
+        error: errorMessage(err),
+      })
       return { success: false as const, error: "Could not reach CEX." }
     }
 
     const parsedData = parseCexResponse(payload, data.barcode)
     if (!parsedData) {
+      log.info("no box for barcode", { barcode: data.barcode })
       return { success: false as const, error: "Not found on CEX either." }
     }
 
+    log.info("imported box", { barcode: data.barcode, title: parsedData.title })
     return {
       success: true as const,
       data: parsedData,

@@ -5,7 +5,10 @@ import { films, wishlistItems, withUser } from "@/db"
 import { env } from "@/env"
 import { filmFormatSchema, toCollectionFormat } from "@/lib/film-formats"
 import { toSortTitle } from "@/lib/film-helpers"
+import { errorMessage, serverLogger } from "@/server/log"
 import { authMiddleware } from "@/server/middleware"
+
+const log = serverLogger("wishlist")
 
 // ---------------------------------------------------------------------------
 // Retailer support
@@ -167,13 +170,24 @@ export const scrapeWishlistUrlFn = createServerFn({ method: "POST" })
       })
       payload = await res.json()
       if (!res.ok) {
+        log.warn("scrape failed", {
+          url: formattedUrl,
+          retailer,
+          status: res.status,
+          error: payload.error,
+        })
         return {
           success: false as const,
           error: payload.error ?? "Failed to scrape the page",
           retailer,
         }
       }
-    } catch {
+    } catch (err) {
+      log.error("scrape unreachable", {
+        url: formattedUrl,
+        retailer,
+        error: errorMessage(err),
+      })
       return {
         success: false as const,
         error: "Scraping service unreachable",
@@ -197,6 +211,12 @@ export const scrapeWishlistUrlFn = createServerFn({ method: "POST" })
     const imageUrl = (metadata.ogImage ?? metadata.image ?? null) as
       string | null
 
+    log.info("scraped product page", {
+      url: formattedUrl,
+      retailer,
+      title,
+      price,
+    })
     return {
       success: true as const,
       data: { title, price, retailer, imageUrl, url: formattedUrl },

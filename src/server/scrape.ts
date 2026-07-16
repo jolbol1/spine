@@ -1,4 +1,7 @@
 import { env } from "@/env"
+import { errorMessage, serverLogger } from "@/server/log"
+
+const log = serverLogger("scrape")
 
 export const BROWSER_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
@@ -31,12 +34,23 @@ export async function fetchPageWithFallback(
       if (res.ok) return { ok: true, html: await res.text(), via: "direct" }
       if (res.status === 404) return { ok: false, status: "notfound" }
       // 403/429/5xx — fall through to Firecrawl.
-    } catch {
+      log.warn("direct fetch blocked, trying Firecrawl", {
+        url,
+        status: res.status,
+      })
+    } catch (err) {
       // Network failure — fall through to Firecrawl.
+      log.warn("direct fetch failed, trying Firecrawl", {
+        url,
+        error: errorMessage(err),
+      })
     }
   }
 
-  if (!env.FIRECRAWL_API_KEY) return { ok: false, status: "blocked" }
+  if (!env.FIRECRAWL_API_KEY) {
+    log.warn("no FIRECRAWL_API_KEY — giving up on blocked page", { url })
+    return { ok: false, status: "blocked" }
+  }
   try {
     const res = await fetch("https://api.firecrawl.dev/v1/scrape", {
       method: "POST",
@@ -54,10 +68,12 @@ export async function fetchPageWithFallback(
       return { ok: false, status: "notfound" }
     }
     if (!res.ok || !payload.data?.rawHtml) {
+      log.warn("Firecrawl scrape failed", { url, status: res.status })
       return { ok: false, status: "blocked" }
     }
     return { ok: true, html: payload.data.rawHtml, via: "firecrawl" }
-  } catch {
+  } catch (err) {
+    log.error("Firecrawl unreachable", { url, error: errorMessage(err) })
     return { ok: false, status: "unreachable" }
   }
 }

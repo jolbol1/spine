@@ -1,6 +1,9 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
+import { errorMessage, serverLogger } from "@/server/log"
 import { authMiddleware } from "@/server/middleware"
+
+const log = serverLogger("bluray")
 
 export interface BlurayResult {
   title: string
@@ -68,16 +71,32 @@ export const searchBlurayFn = createServerFn({ method: "GET" })
         headers: {
           "User-Agent":
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+          // Blu-ray.com rejects requests without an Accept-Language header
+          // (200 + "error42" body). Node's fetch sends one by default; Bun's
+          // — the production runtime — does not.
+          "Accept-Language": "en-GB,en;q=0.9",
         },
         signal: AbortSignal.timeout(10_000),
       })
-      if (!res.ok) return []
+      if (!res.ok) {
+        log.warn("quicksearch failed", {
+          query: data.query,
+          status: res.status,
+        })
+        return []
+      }
       json = await res.json()
-    } catch {
+    } catch (err) {
+      log.error("quicksearch unreachable", {
+        query: data.query,
+        error: errorMessage(err),
+      })
       return []
     }
 
-    return parseBluraySearchResponse(json)
+    const results = parseBluraySearchResponse(json)
+    log.info("quicksearch", { query: data.query, results: results.length })
+    return results
   })
 
 // ---------------------------------------------------------------------------
@@ -207,10 +226,17 @@ export const importBlurayUrlFn = createServerFn({ method: "POST" })
           "User-Agent":
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
           Accept: "text/html",
+          // Required — see searchBlurayFn. Without it Blu-ray.com answers
+          // 200 + "error42" and the import came back with an empty title.
+          "Accept-Language": "en-GB,en;q=0.9",
         },
         signal: AbortSignal.timeout(15_000),
       })
       if (!res.ok) {
+        log.warn("product page fetch failed", {
+          url: parsed.toString(),
+          status: res.status,
+        })
         return {
           success: false as const,
           error: `Blu-ray.com returned ${res.status} for that link.`,
@@ -222,12 +248,32 @@ export const importBlurayUrlFn = createServerFn({ method: "POST" })
       const sniff = new TextDecoder("latin1").decode(bytes.slice(0, 2048))
       const charset = sniff.match(/charset=["']?([\w-]+)/i)?.[1] ?? "iso-8859-1"
       html = new TextDecoder(charset).decode(bytes)
-    } catch {
+    } catch (err) {
+      log.error("product page unreachable", {
+        url: parsed.toString(),
+        error: errorMessage(err),
+      })
       return { success: false as const, error: "Could not reach Blu-ray.com." }
     }
 
-    return {
-      success: true as const,
-      data: parseBlurayProductHtml(html, parsed),
+    const imported = parseBlurayProductHtml(html, parsed)
+    if (!imported.title) {
+      log.error("product page had no parseable title", {
+        url: parsed.toString(),
+        bytes: html.length,
+        bodyStart: html.slice(0, 120),
+      })
+      return {
+        success: false as const,
+        error:
+          "Blu-ray.com sent back a page without any disc details — try again in a minute.",
+      }
     }
+
+    log.info("imported product page", {
+      url: parsed.toString(),
+      title: imported.title,
+      format: imported.format,
+    })
+    return { success: true as const, data: imported }
   })
