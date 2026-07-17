@@ -77,6 +77,7 @@ export const Route = createFileRoute("/_app")({
 
 const navLinks = [
   { to: "/", label: "Collection" },
+  { to: "/shelves", label: "Shelves" },
   { to: "/wishlist", label: "Wishlist" },
   { to: "/stats", label: "Stats" },
   { to: "/oracle", label: "Oracle" },

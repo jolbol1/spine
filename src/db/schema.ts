@@ -31,6 +31,61 @@ export interface SavedView {
   isDefault?: boolean
 }
 
+/** A film field a shelf rule can test. */
+export type ShelfRuleField =
+  | "format"
+  | "mediaType"
+  | "label"
+  | "edition"
+  | "packageType"
+  | "hdr"
+  | "region"
+  | "decade"
+  | "watched"
+  | "genre"
+
+/** One shelf rule: the film's field value must be one of `values` (OR). */
+export interface ShelfRule {
+  field: ShelfRuleField
+  values: string[]
+}
+
+export type ShelfSortKey =
+  "title" | "spine" | "year" | "added" | "publisher" | "runtime"
+
+/** One level of a shelf's sort — earlier levels win, later ones tie-break. */
+export interface ShelfSortLevel {
+  key: ShelfSortKey
+  dir?: "asc" | "desc"
+}
+
+/**
+ * A physical shelf, digitally mirrored. Shelves are an ordered partition of
+ * the collection: films are assigned to the first shelf (top to bottom)
+ * whose rules all match, so a boutique shelf above the format shelves
+ * claims its titles first. Rules are ANDed; an empty rule list matches
+ * everything (a catch-all shelf).
+ */
+export interface Shelf {
+  id: string
+  name: string
+  rules: ShelfRule[]
+  /** Sort levels applied in order; defaults to title A–Z. */
+  sort?: ShelfSortLevel[]
+  /** Optional visual sub-grouping within the shelf. */
+  groupBy?: "label" | "format" | "decade"
+  /** Physical slot count — overflow beyond this is flagged, not hidden. */
+  capacity?: number
+  /** Film ids forced onto this shelf regardless of rules. */
+  pinned?: string[]
+  /** Film ids forced off this shelf even when the rules match. */
+  excluded?: string[]
+  /** Hand-arranged order override — ids listed first, the rest sorted. */
+  manualOrder?: string[]
+  /** When the physical shelf was last arranged — newer films get flagged. */
+  arrangedAt?: string
+}
+
 /** Title-level TMDB metadata, as stored in films.tmdb_details. */
 export interface TmdbDetails {
   imdbId: string | null
@@ -225,6 +280,8 @@ export const userSettings = pgTable(
     letterboxdUsername: text("letterboxd_username"),
     lastLetterboxdSyncAt: timestamp("last_letterboxd_sync_at"),
     savedViews: jsonb("saved_views").$type<SavedView[]>(),
+    /** Ordered digital mirror of the user's physical shelves. */
+    shelves: jsonb("shelves").$type<Shelf[]>(),
   },
   () => [ownerPolicy("user_settings_owner")]
 ).enableRLS()
