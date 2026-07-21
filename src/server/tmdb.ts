@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
-import { eq, isNull } from "drizzle-orm"
+import { and, eq, isNull, or } from "drizzle-orm"
 import { z } from "zod"
 import { films, withUser } from "@/db"
 import type { CastMember, TmdbDetails } from "@/db/schema"
@@ -334,8 +334,10 @@ export async function searchTmdbTitles(
 }
 
 /**
- * Backfill cast for films that don't have it yet (e.g. added before TMDB
- * was configured). Sequential with a small delay to stay friendly to the API.
+ * Backfill credits for films that are missing them — cast, and for movies
+ * also the director (e.g. added before TMDB was configured, or synced before
+ * directors were written back). Sequential with a small delay to stay
+ * friendly to the API.
  */
 export const syncTmdbCastFn = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -353,11 +355,19 @@ export const syncTmdbCastFn = createServerFn({ method: "POST" })
           id: films.id,
           title: films.title,
           year: films.year,
+          director: films.director,
           tmdbId: films.tmdbId,
           tmdbMediaType: films.tmdbMediaType,
         })
         .from(films)
-        .where(isNull(films.tmdbCast))
+        .where(
+          or(
+            isNull(films.tmdbCast),
+            // TV is excluded: TMDB directs per-episode, so a series never
+            // gets a title-level director and would refetch on every run.
+            and(isNull(films.director), eq(films.tmdbMediaType, "movie"))
+          )
+        )
     )
 
     let updated = 0
@@ -380,6 +390,7 @@ export const syncTmdbCastFn = createServerFn({ method: "POST" })
               tmdbMediaType: result.mediaType,
               tmdbCast: result.cast,
               tmdbDetails: result.details,
+              director: film.director ?? (result.directors.join(", ") || null),
               updatedAt: new Date(),
             })
             .where(eq(films.id, film.id))
@@ -415,6 +426,7 @@ export const syncTmdbDetailsFn = createServerFn({ method: "POST" })
           id: films.id,
           title: films.title,
           year: films.year,
+          director: films.director,
           tmdbId: films.tmdbId,
           tmdbMediaType: films.tmdbMediaType,
         })
@@ -440,6 +452,7 @@ export const syncTmdbDetailsFn = createServerFn({ method: "POST" })
             tmdbMediaType: result.mediaType,
             tmdbCast: result.cast,
             tmdbDetails: result.details,
+            director: film.director ?? (result.directors.join(", ") || null),
           }
         }
       }
@@ -482,6 +495,7 @@ export const rematchTmdbFn = createServerFn({ method: "POST" })
           id: films.id,
           title: films.title,
           year: films.year,
+          director: films.director,
           tmdbId: films.tmdbId,
           tmdbMediaType: films.tmdbMediaType,
         })
@@ -512,6 +526,7 @@ export const rematchTmdbFn = createServerFn({ method: "POST" })
           tmdbMediaType: result.mediaType,
           tmdbCast: result.cast,
           tmdbDetails: result.details,
+          director: film.director ?? (result.directors.join(", ") || null),
           updatedAt: new Date(),
         })
         .where(eq(films.id, film.id))

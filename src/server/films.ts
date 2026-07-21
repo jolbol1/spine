@@ -166,6 +166,11 @@ export const updateFilmFn = createServerFn({ method: "POST" })
           tmdbMediaType: tmdb.mediaType,
           tmdbCast: tmdb.cast,
           tmdbDetails: tmdb.details,
+          // Fill a blank director from the new match; spread after toRow,
+          // so this wins over the empty form field.
+          ...(emptyToNull(rest.director) == null && tmdb.directors.length > 0
+            ? { director: tmdb.directors.join(", ") }
+            : {}),
         }
       }
     }
