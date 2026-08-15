@@ -3,7 +3,12 @@ import { z } from "zod"
 import { env } from "@/env"
 import { errorMessage, serverLogger } from "@/server/log"
 import { authMiddleware } from "@/server/middleware"
-import { BROWSER_UA, defaultTransport, fetchPage } from "@/server/page-fetch"
+import {
+  ACCEPT_LANGUAGE,
+  BROWSER_UA,
+  defaultTransport,
+  fetchPage,
+} from "@/server/page-fetch"
 import type { PageTransport } from "@/server/page-fetch"
 
 const log = serverLogger("bluray")
@@ -71,12 +76,12 @@ export const searchBlurayFn = createServerFn({ method: "GET" })
     let json: BluraySearchResponse
     try {
       const res = await fetch(url, {
+        // Quicksearch answers JSON rather than a page, so it does not go
+        // through the port — but the site demands the language header here
+        // too. See ACCEPT_LANGUAGE.
         headers: {
           "User-Agent": BROWSER_UA,
-          // Blu-ray.com rejects requests without an Accept-Language header
-          // (200 + "error42" body). Node's fetch sends one by default; Bun's
-          // — the production runtime — does not.
-          "Accept-Language": "en-GB,en;q=0.9",
+          "Accept-Language": ACCEPT_LANGUAGE,
         },
         signal: AbortSignal.timeout(10_000),
       })
@@ -207,10 +212,10 @@ export type BlurayImportResult =
  */
 const BLURAY_CHARSET = "iso-8859-1"
 
-/** A missing film: sometimes a 404, sometimes a 200 saying as much. */
-const NO_SUCH_MOVIE = /No such movie/i
+/** A film the site does not have: sometimes a 404, sometimes a 200 saying so. */
+const NO_SUCH_MOVIE_PATTERN = /No such movie/i
 
-const NOT_THERE =
+const NO_PAGE_ERROR =
   "Blu-ray.com has no page at that link — check the address on the site."
 
 /**
@@ -248,7 +253,8 @@ export async function importBlurayProduct(
   )
   if (!page.ok) {
     log.warn("product page not fetched", { url, status: page.status })
-    if (page.status === "notfound") return { success: false, error: NOT_THERE }
+    if (page.status === "notfound")
+      return { success: false, error: NO_PAGE_ERROR }
     if (page.status === "blocked") {
       return {
         success: false,
@@ -262,9 +268,9 @@ export async function importBlurayProduct(
 
   const imported = parseBlurayProductHtml(page.html, parsed)
   if (!imported.title) {
-    if (NO_SUCH_MOVIE.test(page.html)) {
+    if (NO_SUCH_MOVIE_PATTERN.test(page.html)) {
       log.warn("no such movie", { url })
-      return { success: false, error: NOT_THERE }
+      return { success: false, error: NO_PAGE_ERROR }
     }
     log.error("product page had no parseable title", {
       url,

@@ -9,11 +9,17 @@ Tests serve these bytes through the fixture transport
 (`src/test/fixture-transport.ts`), so the decoding the port does in production
 is the decoding the test sees.
 
-| File                             | Captured from                                       | Status | Why it is kept                                                                                       |
-| -------------------------------- | --------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------- |
-| `bluray-product-amelie.html.gz`  | `https://www.blu-ray.com/movies/Amelie-Blu-ray/7813/` | 200    | ISO-8859-1 page with accented raw bytes (`Am\xe9lie`) and its `<meta charset>` at byte 2033 — a 2048-byte sniff window cuts the label to `ISO-885`. |
-| `bluray-not-found.html`          | `https://www.blu-ray.com/movies/x/2938/`              | 404    | The site's genuine missing page.                                                                       |
-| `bluray-no-such-movie.html`      | `https://www.blu-ray.com/movies/No-Such-Film-Blu-ray/999999999/` | 200 | A missing film the site answers with 200 and a "No such movie" body rather than a 404. |
+| File                            | Captured from                                                    | Status | Why it is kept                                                                                                                                            |
+| ------------------------------- | ---------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bluray-product-amelie.html.gz` | `https://www.blu-ray.com/movies/Amelie-Blu-ray/7813/`            | 200    | ISO-8859-1 page with accented raw bytes (`Am\xe9lie` in the title) and its `<meta charset>` at byte 2033 — far enough in that a small window loses the label. |
+| `bluray-not-found.html`         | `https://www.blu-ray.com/movies/x/2938/`                         | 404    | The site's genuine missing page.                                                                                                                            |
+| `bluray-no-such-movie.html`     | `https://www.blu-ray.com/movies/No-Such-Film-Blu-ray/999999999/` | 200    | A missing film the site answers with 200 and a "No such movie" body rather than a 404.                                                                      |
+
+The label's position is what makes the product page worth keeping. It sat past
+the original 2048-byte sniff window, which is how the production bug happened:
+the window cut the label to `ISO-885`, no decoder accepted it, and the import
+failed. Tests cut the captured response at 2048 bytes to hold the label in that
+same broken state and assert the import still reads the page correctly.
 
 The product page is stored gzipped only to keep the repository small;
 `capturedResponse()` returns the original bytes.

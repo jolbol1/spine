@@ -63,6 +63,25 @@ describe("outbound page fetch", () => {
     expect(page.html).toContain("<title>Amélie Blu-ray")
   })
 
+  it("lets only a meta tag choose the encoding, not the text of the page", async () => {
+    // A feed carrying the word charset= in its content — a Letterboxd review
+    // quoting one, say — must not decide how the bytes are read.
+    const feed =
+      '<?xml version="1.0"?><rss><item><description>charset=iso-8859-1 is a '
+    const bytes = new TextEncoder().encode(
+      `${feed}café.</description></item></rss>`
+    )
+
+    const result = await fetchPage(
+      { url: PRODUCT },
+      fixtureTransport({ [PRODUCT]: { body: bytes } })
+    )
+
+    const page = pageOf(result)
+    expect(page.charset).toBe("utf-8")
+    expect(page.html).toContain("café")
+  })
+
   it("reports a missing page and a blocked source differently", async () => {
     const transport = fixtureTransport({
       [MISSING]: {

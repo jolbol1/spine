@@ -18,21 +18,29 @@ const log = serverLogger("page-fetch")
 export const BROWSER_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
-/** Sites that refuse a bare request answer a browser-shaped one. */
-const BROWSER_HEADERS = {
+/**
+ * Blu-ray.com rejects requests carrying no Accept-Language at all (200 +
+ * "error42" body). Node's fetch sends one by default; Bun's — the production
+ * runtime — does not, so every outbound call has to send it itself.
+ */
+export const ACCEPT_LANGUAGE = "en-GB,en;q=0.9"
+
+/** Sources that refuse a bare request answer a browser-shaped one. */
+export const BROWSER_HEADERS = {
   "User-Agent": BROWSER_UA,
   Accept: "text/html,application/xhtml+xml,application/xml;q=0.9",
-  // Blu-ray.com rejects requests without an Accept-Language header (200 +
-  // "error42" body). Node's fetch sends one by default; Bun's — the
-  // production runtime — does not.
-  "Accept-Language": "en-GB,en;q=0.9",
+  "Accept-Language": ACCEPT_LANGUAGE,
 }
 
 const DIRECT_TIMEOUT_MS = 15_000
 const FIRECRAWL_TIMEOUT_MS = 90_000
 
-/** How far into a page to look for the character set it declares. */
-const SNIFF_BYTES = 65_536
+/**
+ * How far into a page to look for the character set it declares. Blu-ray.com
+ * declares itself around byte 2000 and can reach 2600 on a long title, so the
+ * window has room to spare; the scan stops at </head> in any case.
+ */
+const SNIFF_BYTES = 8_192
 
 /** What to read bytes as when nothing usable says otherwise. */
 const DEFAULT_CHARSET = "utf-8"
@@ -81,18 +89,32 @@ export function failureForStatus(status: number): PageFailure {
 }
 
 /**
- * The label a page declares for itself, or null when it declares none we can
- * read. The terminating quote or bracket is required: without it a label the
- * bytes cut in half ("ISO-885") reads as a whole one, and decoding then fails
- * on an encoding the page never claimed. Blu-ray.com declares itself around
- * byte 2000, so the window has to be roomy — it stops at </head> in any case.
+ * The character set named by a header value or a meta tag, if it names one.
+ * The label has to end at something — a quote, a bracket, or the end of the
+ * header — so that a label the bytes cut in half is not read as a whole one.
+ */
+export function charsetOf(source: string | null | undefined): string | null {
+  return (
+    /charset\s*=\s*["']?([\w:.+-]+)(?:["'>;/\s]|$)/i.exec(source ?? "")?.[1] ??
+    null
+  )
+}
+
+/**
+ * The character set a page declares for itself, or null when it declares none
+ * we can read. Only a complete <meta> tag in the head counts — a feed whose
+ * text happens to contain "charset=" does not get to choose the encoding.
  */
 function declaredCharset(bytes: Uint8Array): string | null {
   const prefix = new TextDecoder("latin1").decode(
     bytes.subarray(0, SNIFF_BYTES)
   )
   const head = prefix.split("</head>")[0]
-  return /charset\s*=\s*["']?([\w:.+-]+)["'>;/\s]/i.exec(head)?.[1] ?? null
+  for (const tag of head.match(/<meta[^>]*>/gi) ?? []) {
+    const label = charsetOf(tag)
+    if (label) return label
+  }
+  return null
 }
 
 function decoderFor(label: string | null | undefined): TextDecoder | null {
@@ -116,11 +138,15 @@ function decodePage(
   fallback: string
 ): { html: string; charset: string } {
   for (const label of [reported, declaredCharset(bytes), fallback]) {
+    if (!label) continue
     const decoder = decoderFor(label)
-    if (label && decoder) return { html: decoder.decode(bytes), charset: label }
+    if (decoder) return { html: decoder.decode(bytes), charset: label }
   }
   // Every label offered was one no decoder knows.
-  return { html: new TextDecoder().decode(bytes), charset: "utf-8" }
+  return {
+    html: new TextDecoder(DEFAULT_CHARSET).decode(bytes),
+    charset: DEFAULT_CHARSET,
+  }
 }
 
 /** Fetch a page directly, as a browser would. */
@@ -233,8 +259,4 @@ export async function fetchPage(
     request.defaultCharset ?? DEFAULT_CHARSET
   )
   return { ok: true, html, charset, via: result.via }
-}
-
-function charsetOf(contentType: string | null): string | null {
-  return contentType?.match(/charset\s*=\s*["']?([\w:.+-]+)/i)?.[1] ?? null
 }

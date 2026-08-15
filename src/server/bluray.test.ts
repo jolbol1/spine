@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest"
-import { importBlurayProduct } from "@/server/bluray"
+import {
+  importBlurayProduct,
+  parseBlurayProductHtml,
+  parseBluraySearchResponse,
+} from "@/server/bluray"
 import { capturedResponse } from "@/test/captured-response"
 import { fixtureTransport } from "@/test/fixture-transport"
 
@@ -33,6 +37,25 @@ describe("Blu-ray.com import", () => {
           "https://images.static-bluray.com/movies/covers/7813_front.jpg",
         url: PRODUCT,
       },
+    })
+  })
+
+  it("imports correct text from a page whose charset label is cut off", async () => {
+    // The site declares ISO-8859-1 at byte 2033, so a response that stops at
+    // 2048 carries "charset=ISO-885" — the label that used to fail the import.
+    const cutOff = capturedResponse("bluray-product-amelie.html.gz").slice(
+      0,
+      2048
+    )
+
+    const result = await importBlurayProduct(
+      PRODUCT,
+      fixtureTransport({ [PRODUCT]: { body: cutOff } })
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      data: { title: "Amélie" },
     })
   })
 
@@ -95,6 +118,70 @@ describe("Blu-ray.com import", () => {
     expect(result).toEqual({
       success: false,
       error: expect.stringMatching(/blu-ray\.com/i),
+    })
+  })
+
+  it("maps a Blu-ray.com quicksearch response", () => {
+    expect(
+      parseBluraySearchResponse({
+        items: [
+          {
+            title: "Paris &amp; Texas",
+            year: "1984",
+            url: "https://m.blu-ray.com/movies/paris-texas/1/",
+            cover: "https://images.example/poster_small.jpg",
+            flag: "gb.png",
+            reldate: "2026-01-01",
+          },
+          { title: "Incomplete" },
+        ],
+      })
+    ).toEqual([
+      {
+        title: "Paris & Texas",
+        year: 1984,
+        url: "https://www.blu-ray.com/movies/paris-texas/1/",
+        coverUrl: "https://images.example/poster_front.jpg",
+        countryFlag: "gb.png",
+        releaseDate: "2026-01-01",
+      },
+    ])
+  })
+
+  it("parses a full Blu-ray.com product page", () => {
+    const html = `
+      <title>Fixture Film 4K Blu-ray (2024)</title>
+      <a href="movies.php?year=2024">2024</a>
+      Director: <a>Ren&#233; Director</a>
+      <a href="movies.php?studioid=9">Criterion</a>
+      <div id="shortaudio">English: Dolby Atmos<br></div>
+      HDR: Dolby Vision, HDR10<br>
+      Region A, B
+      Spine #123
+      <span>121 min</span>
+      Three-disc set
+      <meta property="og:image" content="https://images.example/fixture_large.jpg">
+      Resolution: 2160p
+    `
+    expect(
+      parseBlurayProductHtml(
+        html,
+        new URL("https://www.blu-ray.com/movies/fixture/1/")
+      )
+    ).toEqual({
+      title: "Fixture Film",
+      year: 2024,
+      director: "René Director",
+      format: "4K UHD",
+      audio: "English: Dolby Atmos",
+      hdr: "Dolby Vision, HDR10",
+      region: "A, B",
+      label: "Criterion",
+      spineNumber: 123,
+      runtimeMinutes: 121,
+      discCount: 3,
+      coverUrl: "https://images.example/fixture_front.jpg",
+      url: "https://www.blu-ray.com/movies/fixture/1/",
     })
   })
 })

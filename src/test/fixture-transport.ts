@@ -1,4 +1,4 @@
-import { failureForStatus } from "@/server/page-fetch"
+import { charsetOf, failureForStatus } from "@/server/page-fetch"
 import type { PageTransport } from "@/server/page-fetch"
 
 /** One captured response, keyed by the address it was captured from. */
@@ -40,8 +40,4 @@ export function fixtureTransport(
       via: "fixture",
     }
   }
-}
-
-function charsetOf(contentType: string | undefined): string | null {
-  return contentType?.match(/charset\s*=\s*["']?([\w:.+-]+)/i)?.[1] ?? null
 }

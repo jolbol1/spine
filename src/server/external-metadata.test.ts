@@ -1,9 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { env } from "@/env"
-import {
-  parseBlurayProductHtml,
-  parseBluraySearchResponse,
-} from "@/server/bluray"
 import { parseCexResponse } from "@/server/cex"
 import {
   isCriterionLabel,
@@ -27,70 +23,6 @@ afterEach(() => {
 })
 
 describe("external metadata fixtures", () => {
-  it("maps a Blu-ray.com quicksearch response", () => {
-    expect(
-      parseBluraySearchResponse({
-        items: [
-          {
-            title: "Paris &amp; Texas",
-            year: "1984",
-            url: "https://m.blu-ray.com/movies/paris-texas/1/",
-            cover: "https://images.example/poster_small.jpg",
-            flag: "gb.png",
-            reldate: "2026-01-01",
-          },
-          { title: "Incomplete" },
-        ],
-      })
-    ).toEqual([
-      {
-        title: "Paris & Texas",
-        year: 1984,
-        url: "https://www.blu-ray.com/movies/paris-texas/1/",
-        coverUrl: "https://images.example/poster_front.jpg",
-        countryFlag: "gb.png",
-        releaseDate: "2026-01-01",
-      },
-    ])
-  })
-
-  it("parses a full Blu-ray.com product page", () => {
-    const html = `
-      <title>Fixture Film 4K Blu-ray (2024)</title>
-      <a href="movies.php?year=2024">2024</a>
-      Director: <a>Ren&#233; Director</a>
-      <a href="movies.php?studioid=9">Criterion</a>
-      <div id="shortaudio">English: Dolby Atmos<br></div>
-      HDR: Dolby Vision, HDR10<br>
-      Region A, B
-      Spine #123
-      <span>121 min</span>
-      Three-disc set
-      <meta property="og:image" content="https://images.example/fixture_large.jpg">
-      Resolution: 2160p
-    `
-    expect(
-      parseBlurayProductHtml(
-        html,
-        new URL("https://www.blu-ray.com/movies/fixture/1/")
-      )
-    ).toEqual({
-      title: "Fixture Film",
-      year: 2024,
-      director: "René Director",
-      format: "4K UHD",
-      audio: "English: Dolby Atmos",
-      hdr: "Dolby Vision, HDR10",
-      region: "A, B",
-      label: "Criterion",
-      spineNumber: 123,
-      runtimeMinutes: 121,
-      discCount: 3,
-      coverUrl: "https://images.example/fixture_front.jpg",
-      url: "https://www.blu-ray.com/movies/fixture/1/",
-    })
-  })
-
   it("parses CEX box details", () => {
     expect(
       parseCexResponse(
