@@ -80,6 +80,36 @@ describe("BarcodeScanDialog", () => {
     await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(2))
   })
 
+  it("keeps the camera running when the parent re-renders with new callbacks", async () => {
+    const stop = vi.fn()
+    const stream = {
+      getTracks: () => [{ stop }],
+    } as unknown as MediaStream
+    const getUserMedia = vi.fn().mockResolvedValue(stream)
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia },
+    })
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue()
+
+    const { rerender } = render(
+      <BarcodeScanDialog open onOpenChange={vi.fn()} onDetected={vi.fn()} />
+    )
+    await waitFor(() => expect(getUserMedia).toHaveBeenCalledOnce())
+
+    // Typing elsewhere re-renders the parent, which hands the dialog
+    // fresh callback props. The running camera must not notice.
+    rerender(
+      <BarcodeScanDialog open onOpenChange={vi.fn()} onDetected={vi.fn()} />
+    )
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(stop).not.toHaveBeenCalled()
+    expect(getUserMedia).toHaveBeenCalledOnce()
+  })
+
   it("returns the first UPC/EAN detection and stops the stream", async () => {
     const stop = vi.fn()
     const stream = {
