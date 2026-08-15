@@ -7,7 +7,8 @@ import type {
   ShelfSortLevel,
   WishlistItem,
 } from "@/db/schema"
-import { isWatched, toSortTitle } from "@/lib/film-helpers"
+import { filmFieldValues } from "@/lib/film-fields"
+import { toSortTitle } from "@/lib/film-helpers"
 
 /**
  * Shelves are an ordered partition of the collection: every film lives on
@@ -15,22 +16,6 @@ import { isWatched, toSortTitle } from "@/lib/film-helpers"
  * order doubles as rule precedence. A boutique shelf above the format
  * shelves claims its Criterion 4Ks before the 4K shelf can.
  */
-
-export const SHELF_RULE_FIELDS: Array<{
-  field: ShelfRuleField
-  label: string
-}> = [
-  { field: "format", label: "Format" },
-  { field: "mediaType", label: "Type" },
-  { field: "label", label: "Publisher" },
-  { field: "edition", label: "Edition" },
-  { field: "packageType", label: "Package" },
-  { field: "hdr", label: "HDR" },
-  { field: "region", label: "Region" },
-  { field: "decade", label: "Decade" },
-  { field: "watched", label: "Watched" },
-  { field: "genre", label: "Genre" },
-]
 
 export const SHELF_SORT_KEYS: Array<{ key: ShelfSortKey; label: string }> = [
   { key: "title", label: "Title" },
@@ -53,40 +38,10 @@ const DEFAULT_SORT_DIR: Record<ShelfSortKey, "asc" | "desc"> = {
   runtime: "asc",
 }
 
-/**
- * A film's value for a rule field. Genres return every genre; unmatched
- * titles count as movies (physical shelves are mostly films) and missing
- * HDR means SDR, both consistent with the collection page filters.
- */
-export function shelfFieldValues(film: Film, field: ShelfRuleField): string[] {
-  switch (field) {
-    case "format":
-      return [film.format]
-    case "mediaType":
-      return [film.tmdbMediaType === "tv" ? "TV" : "Movie"]
-    case "label":
-      return film.label ? [film.label] : []
-    case "edition":
-      return film.edition ? [film.edition] : []
-    case "packageType":
-      return film.packageType ? [film.packageType] : []
-    case "hdr":
-      return [film.hdr ?? "SDR"]
-    case "region":
-      return film.region ? [film.region] : []
-    case "decade":
-      return film.year != null ? [`${Math.floor(film.year / 10) * 10}s`] : []
-    case "watched":
-      return [isWatched(film) ? "Watched" : "Unwatched"]
-    case "genre":
-      return film.tmdbDetails?.genres ?? []
-  }
-}
-
 /** Rules with no values are builder drafts — they match everything. */
 const ruleMatches = (film: Film, rule: ShelfRule): boolean =>
   rule.values.length === 0 ||
-  shelfFieldValues(film, rule.field).some((v) => rule.values.includes(v))
+  filmFieldValues(film, rule.field).some((v) => rule.values.includes(v))
 
 /** Rules only — ignores pins and exclusions. */
 export function matchesShelfRules(film: Film, shelf: Shelf): boolean {
@@ -142,16 +97,8 @@ function compareBySort(a: Film, b: Film, levels: ShelfSortLevel[]): number {
 
 /** The visual sub-group a film belongs to on a shelf, if grouping is on. */
 export function shelfGroupKey(film: Film, shelf: Shelf): string | null {
-  switch (shelf.groupBy) {
-    case "label":
-      return film.label
-    case "format":
-      return film.format
-    case "decade":
-      return film.year != null ? `${Math.floor(film.year / 10) * 10}s` : null
-    default:
-      return null
-  }
+  if (!shelf.groupBy) return null
+  return filmFieldValues(film, shelf.groupBy)[0] ?? null
 }
 
 /**
@@ -429,20 +376,4 @@ export function buildTemplateShelves(
     case "everything":
       return [{ id: newId(), name: "Collection", rules: [] }]
   }
-}
-
-/** Distinct values (with counts) the collection has for a rule field. */
-export function shelfFieldOptions(
-  films: Film[],
-  field: ShelfRuleField
-): Array<[string, number]> {
-  const counts = new Map<string, number>()
-  for (const film of films) {
-    for (const value of shelfFieldValues(film, field)) {
-      counts.set(value, (counts.get(value) ?? 0) + 1)
-    }
-  }
-  return [...counts.entries()].sort((a, b) =>
-    a[0].localeCompare(b[0], undefined, { numeric: true })
-  )
 }

@@ -31,13 +31,8 @@ import type {
   ShelfSortKey,
   ShelfSortLevel,
 } from "@/db/schema"
-import {
-  SHELF_RULE_FIELDS,
-  SHELF_SORT_KEYS,
-  assignFilms,
-  matchesShelfRules,
-  shelfFieldOptions,
-} from "@/lib/shelves"
+import { FILM_FIELDS, filmFieldOptionsByField } from "@/lib/film-fields"
+import { SHELF_SORT_KEYS, assignFilms, matchesShelfRules } from "@/lib/shelves"
 
 const NONE = "none"
 
@@ -106,7 +101,7 @@ function RuleValuePicker({
 }
 
 const FIELD_ITEMS = Object.fromEntries(
-  SHELF_RULE_FIELDS.map(({ field, label }) => [field, label])
+  FILM_FIELDS.map(({ field, label }) => [field, label])
 )
 const SORT_ITEMS = Object.fromEntries(
   SHELF_SORT_KEYS.map(({ key, label }) => [key, label])
@@ -145,13 +140,7 @@ export function ShelfBuilderDialog({
     setCapacity(editing?.capacity != null ? String(editing.capacity) : "")
   }, [open, editing])
 
-  const optionsByField = useMemo(() => {
-    const result = {} as Record<ShelfRuleField, Array<[string, number]>>
-    for (const { field } of SHELF_RULE_FIELDS) {
-      result[field] = shelfFieldOptions(films, field)
-    }
-    return result
-  }, [films])
+  const optionsByField = useMemo(() => filmFieldOptionsByField(films), [films])
 
   /** The draft as a Shelf, in its final position in the layout. */
   const draft: Shelf = useMemo(
@@ -258,7 +247,7 @@ export function ShelfBuilderDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {SHELF_RULE_FIELDS.map(({ field, label }) => (
+                    {FILM_FIELDS.map(({ field, label }) => (
                       <SelectItem key={field} value={field}>
                         {label}
                       </SelectItem>

@@ -10,7 +10,6 @@ import {
   isNewSinceArranged,
   matchesShelfRules,
   orderShelfFilms,
-  shelfFieldOptions,
   shelfOverflow,
 } from "./shelves"
 
@@ -381,14 +380,6 @@ describe("templates", () => {
       "Blu-ray",
       "DVD",
       "TV box sets",
-    ])
-  })
-
-  it("lists field options with counts", () => {
-    expect(shelfFieldOptions(collection, "format")).toEqual([
-      ["4K UHD", 3],
-      ["Blu-ray", 2],
-      ["DVD", 1],
     ])
   })
 })

@@ -54,6 +54,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { Film, SavedView } from "@/db/schema"
+import type { FilmField } from "@/lib/film-fields"
+import {
+  FILM_FIELDS,
+  MEDIA_TYPES,
+  filmFieldOptionsByField,
+  filmFieldValues,
+} from "@/lib/film-fields"
 import {
   FORMATS,
   formatPrice,
@@ -65,6 +72,14 @@ import {
 import { filmsQuery, settingsQuery } from "@/lib/queries"
 import { saveViewsFn } from "@/server/settings"
 import { cn } from "@/lib/utils"
+
+/**
+ * One filter param per projected film field, so the page can express every
+ * field the shelf builder offers as a rule — the two cannot drift apart.
+ */
+const filterShape = Object.fromEntries(
+  FILM_FIELDS.map(({ field }) => [field, z.string().optional()])
+) as Record<FilmField, z.ZodOptional<z.ZodString>>
 
 /**
  * The whole browse state lives in the URL, so a refresh (or a shared
@@ -92,18 +107,9 @@ const searchSchema = z.object({
     .optional(),
   dir: z.enum(["asc", "desc"]).optional(),
   letter: z.string().max(1).optional(),
-  decade: z.string().optional(),
-  format: z.string().optional(),
-  hdr: z.string().optional(),
-  region: z.string().optional(),
-  label: z.string().optional(),
-  packageType: z.string().optional(),
-  edition: z.string().optional(),
-  watched: z.string().optional(),
-  tmdb: z.string().optional(),
   view: z.enum(["grid", "list"]).optional(),
   overlay: z.string().optional(),
-  type: z.enum(["movie", "tv"]).optional(),
+  ...filterShape,
 })
 
 export const Route = createFileRoute("/_app/")({
@@ -112,13 +118,25 @@ export const Route = createFileRoute("/_app/")({
   component: CollectionPage,
 })
 
+/**
+ * Views saved before media type became a projected film field carry
+ * `type=movie|tv`; read them as the `mediaType` filter they now are.
+ */
+function migrateLegacyParams(
+  params: Record<string, string>
+): Record<string, string> {
+  const { type, ...rest } = params
+  if (type !== "movie" && type !== "tv") return rest
+  return { ...rest, mediaType: type === "tv" ? "TV" : "Movie" }
+}
+
 /** Keep only params a saved view can restore — drops junk/stale keys. */
 function sanitizeViewParams(
   params: Record<string, string>
 ): Record<string, string> {
   const out: Record<string, string> = {}
   const shape: Record<string, z.ZodType | undefined> = searchSchema.shape
-  for (const [key, value] of Object.entries(params)) {
+  for (const [key, value] of Object.entries(migrateLegacyParams(params))) {
     const field = shape[key]
     if (field && field.safeParse(value).success) out[key] = value
   }
@@ -232,38 +250,21 @@ const LETTERS = ["#", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"] as const
 
 const ANY = "any"
 
-/** Advanced-filter keys and how each reads its value off a film. */
-const FILTER_DEFS = [
-  {
-    key: "decade",
-    label: "Decade",
-    valueOf: (f: Film) =>
-      f.year != null ? `${Math.floor(f.year / 10) * 10}s` : null,
-  },
-  { key: "format", label: "Format", valueOf: (f: Film) => f.format },
-  { key: "hdr", label: "HDR", valueOf: (f: Film) => f.hdr ?? "SDR" },
-  { key: "region", label: "Region", valueOf: (f: Film) => f.region },
-  { key: "label", label: "Publisher", valueOf: (f: Film) => f.label },
-  {
-    key: "packageType",
-    label: "Package",
-    valueOf: (f: Film) => f.packageType,
-  },
-  { key: "edition", label: "Edition", valueOf: (f: Film) => f.edition },
-  {
-    key: "watched",
-    label: "Watched",
-    valueOf: (f: Film) => (isWatched(f) ? "Watched" : "Unwatched"),
-  },
-  {
-    key: "tmdb",
-    label: "TMDB",
-    valueOf: (f: Film) => (f.tmdbId != null ? "Matched" : "No match"),
-  },
-] as const
+/** The value chosen for each filterable film field, or `ANY`. */
+type Filters = Record<FilmField, string>
 
-type FilterKey = (typeof FILTER_DEFS)[number]["key"]
-type Filters = Record<FilterKey, string>
+/** Tab wording for the media-type filter; other values read as they are. */
+const MEDIA_TYPE_TABS: Record<string, string> = {
+  [ANY]: "All",
+  Movie: "Movies",
+}
+
+/**
+ * Media type has its own tab group above the panel, so the panel — and the
+ * count on the Filters button — cover the other fields. Every field stays
+ * filterable, which is what keeps the page and the shelf builder in step.
+ */
+const PANEL_FIELDS = FILM_FIELDS.filter(({ field }) => field !== "mediaType")
 
 function OverlayChip({ children }: { children: React.ReactNode }) {
   return (
@@ -766,14 +767,10 @@ function CollectionPage() {
     else next.add(key)
     setParams({ overlay: next.size > 0 ? [...next].join(",") : null })
   }
-  // Unmatched titles count as movies — physical shelves are mostly films.
-  const typeFilter = params.type ?? "all"
-  const isTv = (f: Film) => f.tmdbMediaType === "tv"
-  const tvCount = useMemo(() => films.filter(isTv).length, [films])
   const filters: Filters = useMemo(
     () =>
       Object.fromEntries(
-        FILTER_DEFS.map((d) => [d.key, params[d.key] ?? ANY])
+        FILM_FIELDS.map(({ field }) => [field, params[field] ?? ANY])
       ) as Filters,
     [params]
   )
@@ -814,37 +811,29 @@ function CollectionPage() {
     }
   }
 
-  const hasUrlFilters = FILTER_DEFS.some((d) => params[d.key] != null)
+  const hasUrlFilters = PANEL_FIELDS.some(({ field }) => params[field] != null)
   const [filtersOpen, setFiltersOpen] = useState(hasUrlFilters)
 
   const presentLetters = useMemo(() => new Set(films.map(sortLetter)), [films])
 
   // Distinct values (with counts) present in the collection, per filter.
-  const filterOptions = useMemo(() => {
-    const result = {} as Record<FilterKey, Array<[string, number]>>
-    for (const def of FILTER_DEFS) {
-      const counts = new Map<string, number>()
-      for (const film of films) {
-        const value = def.valueOf(film)
-        if (value == null || value === "") continue
-        counts.set(value, (counts.get(value) ?? 0) + 1)
-      }
-      result[def.key] = [...counts.entries()].sort((a, b) =>
-        a[0].localeCompare(b[0], undefined, { numeric: true })
-      )
-    }
-    return result
-  }, [films])
+  const filterOptions = useMemo(() => filmFieldOptionsByField(films), [films])
 
-  const activeFilterCount = FILTER_DEFS.filter(
-    (d) => filters[d.key] !== ANY
+  const activeFilterCount = PANEL_FIELDS.filter(
+    ({ field }) => filters[field] !== ANY
   ).length
+
+  /** "All", then one tab per media type, counted from the projection. */
+  const mediaTypeTabs: Array<[string, number]> = [
+    [ANY, films.length],
+    ...MEDIA_TYPES.map((value): [string, number] => [
+      value,
+      filterOptions.mediaType.find(([v]) => v === value)?.[1] ?? 0,
+    ]),
+  ]
 
   const visible = useMemo(() => {
     let list = sortFilms(films, sort, params.dir)
-    if (typeFilter !== "all") {
-      list = list.filter((f) => (typeFilter === "tv" ? isTv(f) : !isTv(f)))
-    }
     const q = params.q?.trim().toLowerCase()
     if (q) {
       list = list.filter(
@@ -855,16 +844,16 @@ function CollectionPage() {
           (f.spineNumber != null && `#${f.spineNumber}`.includes(q))
       )
     }
-    for (const def of FILTER_DEFS) {
-      const wanted = filters[def.key]
+    for (const { field } of FILM_FIELDS) {
+      const wanted = filters[field]
       if (wanted === ANY) continue
-      list = list.filter((f) => def.valueOf(f) === wanted)
+      list = list.filter((f) => filmFieldValues(f, field).includes(wanted))
     }
     if (letter && sort === "title") {
       list = list.filter((f) => sortLetter(f) === letter)
     }
     return list
-  }, [films, sort, params.q, params.dir, letter, filters, typeFilter])
+  }, [films, sort, params.q, params.dir, letter, filters])
 
   const watchedCount = films.filter(isWatched).length
 
@@ -1141,31 +1130,26 @@ function CollectionPage() {
         </DialogContent>
       </Dialog>
 
+      {/* The media-type filter's own control, in place of a panel select. */}
       <div
         role="group"
         aria-label="Filter by media type"
         className="flex w-fit gap-0.5 rounded-lg border bg-secondary/50 p-0.5"
       >
-        {(
-          [
-            ["all", `All (${films.length})`],
-            ["movie", `Movies (${films.length - tvCount})`],
-            ["tv", `TV (${tvCount})`],
-          ] as const
-        ).map(([key, label]) => (
+        {mediaTypeTabs.map(([value, count]) => (
           <button
-            key={key}
+            key={value}
             type="button"
-            aria-pressed={typeFilter === key}
-            onClick={() => setParams({ type: key === "all" ? null : key })}
+            aria-pressed={filters.mediaType === value}
+            onClick={() => setParams({ mediaType: value })}
             className={cn(
               "rounded-md px-3 py-1 text-sm font-medium transition-colors",
-              typeFilter === key
+              filters.mediaType === value
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
-            {label}
+            {MEDIA_TYPE_TABS[value] ?? value} ({count})
           </button>
         ))}
       </div>
@@ -1173,13 +1157,13 @@ function CollectionPage() {
       {filtersOpen && (
         <div className="space-y-3 rounded-lg border bg-card p-4">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {FILTER_DEFS.map((def) => (
+            {PANEL_FIELDS.map(({ field, label }) => (
               <FilterSelect
-                key={def.key}
-                label={def.label}
-                value={filters[def.key]}
-                options={filterOptions[def.key]}
-                onChange={(value) => setParams({ [def.key]: value })}
+                key={field}
+                label={label}
+                value={filters[field]}
+                options={filterOptions[field]}
+                onChange={(value) => setParams({ [field]: value })}
               />
             ))}
           </div>
@@ -1194,7 +1178,9 @@ function CollectionPage() {
                 className="gap-1.5"
                 onClick={() =>
                   setParams(
-                    Object.fromEntries(FILTER_DEFS.map((d) => [d.key, null]))
+                    Object.fromEntries(
+                      PANEL_FIELDS.map(({ field }) => [field, null])
+                    )
                   )
                 }
               >

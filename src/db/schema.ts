@@ -12,6 +12,7 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core"
+import type { FilmField } from "@/lib/film-fields"
 
 /** One credited performer, as stored in films.tmdb_cast. */
 export interface CastMember {
@@ -31,18 +32,11 @@ export interface SavedView {
   isDefault?: boolean
 }
 
-/** A film field a shelf rule can test. */
-export type ShelfRuleField =
-  | "format"
-  | "mediaType"
-  | "label"
-  | "edition"
-  | "packageType"
-  | "hdr"
-  | "region"
-  | "decade"
-  | "watched"
-  | "genre"
+/**
+ * A film field a shelf rule can test — the film-field projection's table,
+ * so a rule can only name a field every page can also derive and filter on.
+ */
+export type ShelfRuleField = FilmField
 
 /** One shelf rule: the film's field value must be one of `values` (OR). */
 export interface ShelfRule {

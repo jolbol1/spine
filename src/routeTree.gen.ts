@@ -9,23 +9,22 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SignupRouteImport } from './routes/signup'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
-import { Route as AppWishlistRouteImport } from './routes/_app/wishlist'
-import { Route as AppStatsRouteImport } from './routes/_app/stats'
-import { Route as AppShelvesRouteImport } from './routes/_app/shelves'
-import { Route as AppSettingsRouteImport } from './routes/_app/settings'
-import { Route as AppOracleRouteImport } from './routes/_app/oracle'
 import { Route as AppAddRouteImport } from './routes/_app/add'
-import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
-import { Route as AppPeoplePersonRouteImport } from './routes/_app/people.$person'
+import { Route as AppOracleRouteImport } from './routes/_app/oracle'
+import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppShelvesRouteImport } from './routes/_app/shelves'
+import { Route as AppStatsRouteImport } from './routes/_app/stats'
+import { Route as AppWishlistRouteImport } from './routes/_app/wishlist'
 import { Route as AppFilmsFilmIdRouteImport } from './routes/_app/films.$filmId'
+import { Route as AppPeoplePersonRouteImport } from './routes/_app/people.$person'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
-const SignupRoute = SignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -33,8 +32,9 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppRoute = AppRouteImport.update({
-  id: '/_app',
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -42,24 +42,9 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
-const AppWishlistRoute = AppWishlistRouteImport.update({
-  id: '/wishlist',
-  path: '/wishlist',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppStatsRoute = AppStatsRouteImport.update({
-  id: '/stats',
-  path: '/stats',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppShelvesRoute = AppShelvesRouteImport.update({
-  id: '/shelves',
-  path: '/shelves',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppSettingsRoute = AppSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
+const AppAddRoute = AppAddRouteImport.update({
+  id: '/add',
+  path: '/add',
   getParentRoute: () => AppRoute,
 } as any)
 const AppOracleRoute = AppOracleRouteImport.update({
@@ -67,25 +52,40 @@ const AppOracleRoute = AppOracleRouteImport.update({
   path: '/oracle',
   getParentRoute: () => AppRoute,
 } as any)
-const AppAddRoute = AppAddRouteImport.update({
-  id: '/add',
-  path: '/add',
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
-const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
-  id: '/api/auth/$',
-  path: '/api/auth/$',
-  getParentRoute: () => rootRouteImport,
+const AppShelvesRoute = AppShelvesRouteImport.update({
+  id: '/shelves',
+  path: '/shelves',
+  getParentRoute: () => AppRoute,
 } as any)
-const AppPeoplePersonRoute = AppPeoplePersonRouteImport.update({
-  id: '/people/$person',
-  path: '/people/$person',
+const AppStatsRoute = AppStatsRouteImport.update({
+  id: '/stats',
+  path: '/stats',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppWishlistRoute = AppWishlistRouteImport.update({
+  id: '/wishlist',
+  path: '/wishlist',
   getParentRoute: () => AppRoute,
 } as any)
 const AppFilmsFilmIdRoute = AppFilmsFilmIdRouteImport.update({
   id: '/films/$filmId',
   path: '/films/$filmId',
   getParentRoute: () => AppRoute,
+} as any)
+const AppPeoplePersonRoute = AppPeoplePersonRouteImport.update({
+  id: '/people/$person',
+  path: '/people/$person',
+  getParentRoute: () => AppRoute,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -187,11 +187,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/signup': {
-      id: '/signup'
-      path: '/signup'
-      fullPath: '/signup'
-      preLoaderRoute: typeof SignupRouteImport
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -201,11 +201,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_app': {
-      id: '/_app'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AppRouteImport
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/': {
@@ -215,32 +215,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/wishlist': {
-      id: '/_app/wishlist'
-      path: '/wishlist'
-      fullPath: '/wishlist'
-      preLoaderRoute: typeof AppWishlistRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/stats': {
-      id: '/_app/stats'
-      path: '/stats'
-      fullPath: '/stats'
-      preLoaderRoute: typeof AppStatsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/shelves': {
-      id: '/_app/shelves'
-      path: '/shelves'
-      fullPath: '/shelves'
-      preLoaderRoute: typeof AppShelvesRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/settings': {
-      id: '/_app/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AppSettingsRouteImport
+    '/_app/add': {
+      id: '/_app/add'
+      path: '/add'
+      fullPath: '/add'
+      preLoaderRoute: typeof AppAddRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/oracle': {
@@ -250,25 +229,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppOracleRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/add': {
-      id: '/_app/add'
-      path: '/add'
-      fullPath: '/add'
-      preLoaderRoute: typeof AppAddRouteImport
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
-    '/api/auth/$': {
-      id: '/api/auth/$'
-      path: '/api/auth/$'
-      fullPath: '/api/auth/$'
-      preLoaderRoute: typeof ApiAuthSplatRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_app/shelves': {
+      id: '/_app/shelves'
+      path: '/shelves'
+      fullPath: '/shelves'
+      preLoaderRoute: typeof AppShelvesRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/_app/people/$person': {
-      id: '/_app/people/$person'
-      path: '/people/$person'
-      fullPath: '/people/$person'
-      preLoaderRoute: typeof AppPeoplePersonRouteImport
+    '/_app/stats': {
+      id: '/_app/stats'
+      path: '/stats'
+      fullPath: '/stats'
+      preLoaderRoute: typeof AppStatsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/wishlist': {
+      id: '/_app/wishlist'
+      path: '/wishlist'
+      fullPath: '/wishlist'
+      preLoaderRoute: typeof AppWishlistRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/films/$filmId': {
@@ -277,6 +263,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/films/$filmId'
       preLoaderRoute: typeof AppFilmsFilmIdRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/_app/people/$person': {
+      id: '/_app/people/$person'
+      path: '/people/$person'
+      fullPath: '/people/$person'
+      preLoaderRoute: typeof AppPeoplePersonRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }

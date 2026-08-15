@@ -27,6 +27,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import type { Film } from "@/db/schema"
+import { filmFieldOptions } from "@/lib/film-fields"
 import {
   directorsOf,
   formatPrice,
@@ -51,6 +52,12 @@ const ACCENTS = [
   "bg-chart-5",
 ]
 
+/**
+ * Tally for the figures that are not projected film fields — cast, TMDB
+ * lists and composites. Anything a shelf rule or a collection filter can
+ * also name is counted by the film-field projection instead, so the three
+ * pages never disagree about what a film's value is.
+ */
 function tally<T>(
   items: T[],
   key: (item: T) => string | null
@@ -569,6 +576,7 @@ function StatsPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <DonutCard title="Media type" rows={stats.byFormat} />
         <DonutCard title="Resolution" rows={stats.byResolution} />
+        <DonutCard title="Dynamic range" rows={stats.byDynamicRange} />
         <RegionChart rows={stats.byRegion} />
         <AgeRatingChart rows={stats.byCertification} />
         <RankedCard
@@ -738,9 +746,6 @@ function computeStats(films: Film[]) {
     null
   )
 
-  const byDecade = tally(withYear, (f) => `${Math.floor(f.year! / 10) * 10}s`)
-  byDecade.sort((a, b) => a[0].localeCompare(b[0]))
-
   return {
     totalTitles: films.length,
     totalDiscs,
@@ -753,27 +758,27 @@ function computeStats(films: Film[]) {
     newest,
     longest,
     shortest,
-    byDecade,
+    byDecade: filmFieldOptions(films, "decade"),
     topDirectors: tally(films.flatMap(directorsOf), (name) => name),
     topActors: tally(
       films.flatMap((f) => f.tmdbCast ?? []),
       (member) => member.name
     ),
-    byFormat: tally(films, (f) => f.format),
+    byFormat: filmFieldOptions(films, "format", "count"),
     byResolution: tally(films, resolutionOf),
-    byRegion: tally(films, (f) => f.region && `Region ${f.region}`),
+    byDynamicRange: filmFieldOptions(films, "hdr", "count"),
+    byRegion: filmFieldOptions(films, "region", "count").map(
+      ([region, count]): [string, number] => [`Region ${region}`, count]
+    ),
     publisherPackage: tally(films, (f) =>
       f.label ? `${f.label} — ${f.packageType ?? "Standard"}` : null
     ),
-    byPublisher: tally(films, (f) => f.label),
+    byPublisher: filmFieldOptions(films, "label", "count"),
     byProductionCompany: tally(
       films.flatMap((f) => f.tmdbDetails?.productionCompanies ?? []),
       (name) => name
     ),
-    byGenre: tally(
-      films.flatMap((f) => f.tmdbDetails?.genres ?? []),
-      (name) => name
-    ),
+    byGenre: filmFieldOptions(films, "genre", "count"),
     byCountry: tally(
       films.flatMap((f) => f.tmdbDetails?.productionCountries ?? []),
       (name) => name

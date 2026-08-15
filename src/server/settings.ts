@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 import { userSettings, withUser } from "@/db"
 import { eq } from "drizzle-orm"
+import { FILM_FIELD_KEYS } from "@/lib/film-fields"
 import { authMiddleware } from "@/server/middleware"
 
 export const getSettingsFn = createServerFn({ method: "GET" })
@@ -47,18 +48,7 @@ const shelfSchema = z.object({
   rules: z
     .array(
       z.object({
-        field: z.enum([
-          "format",
-          "mediaType",
-          "label",
-          "edition",
-          "packageType",
-          "hdr",
-          "region",
-          "decade",
-          "watched",
-          "genre",
-        ]),
+        field: z.enum(FILM_FIELD_KEYS),
         values: z.array(z.string().max(200)).max(100),
       })
     )
