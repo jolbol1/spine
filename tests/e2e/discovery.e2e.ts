@@ -1,45 +1,6 @@
 import { expect, test } from "@playwright/test"
-import postgres from "postgres"
-import { accountFor, addFilm, signUp } from "./support"
-
-async function enrichFixture() {
-  const sql = postgres(process.env.DATABASE_URL_ADMIN!, { max: 1 })
-  try {
-    await sql`
-      update films
-      set
-        tmdb_id = 4242,
-        tmdb_media_type = 'movie',
-        tmdb_cast = ${sql.json([
-          {
-            id: 99,
-            name: "Fixture Actor",
-            character: "Fixture Role",
-            profilePath: null,
-          },
-        ])},
-        tmdb_details = ${sql.json({
-          imdbId: "tt1234567",
-          genres: ["Drama", "Science Fiction"],
-          productionCompanies: ["Fixture Studio"],
-          productionCountries: ["United Kingdom"],
-          originalLanguage: "en",
-          budget: 10_000_000,
-          revenue: 125_000_000,
-          voteAverage: 8.5,
-          collection: "Fixture Collection",
-          certification: "15",
-        })},
-        rt_url = 'https://www.rottentomatoes.com/m/stats_fixture',
-        rt_critics_score = 85,
-        rt_audience_score = 92,
-        rt_synced_at = now()
-      where title = 'Stats Fixture'
-    `
-  } finally {
-    await sql.end()
-  }
-}
+import { castMemberFixture, tmdbDetailsFixture } from "@/test/film-fixture"
+import { accountFor, addFilm, seedFilm, signUp } from "./support"
 
 test("stats, Oracle, and person pages reflect the collection", async ({
   page,
@@ -51,15 +12,22 @@ test("stats, Oracle, and person pages reflect the collection", async ({
   await page.getByRole("link", { name: "Oracle", exact: true }).click()
   await expect(page.getByText("The Oracle sees nothing")).toBeVisible()
 
-  await addFilm(page, {
-    title: "Stats Fixture",
+  await addFilm(page, { title: "Stats Fixture" })
+  await seedFilm("Stats Fixture", {
     director: "Discovery Director",
-    year: "2001",
-    runtime: "90",
-    discCount: "2",
-    price: "20",
+    year: 2001,
+    runtimeMinutes: 90,
+    discCount: 2,
+    pricePaid: "20.00",
+    tmdbId: 4242,
+    tmdbMediaType: "movie",
+    tmdbCast: [castMemberFixture()],
+    tmdbDetails: tmdbDetailsFixture(),
+    rtUrl: "https://www.rottentomatoes.com/m/stats_fixture",
+    rtCriticsScore: 85,
+    rtAudienceScore: 92,
+    rtSyncedAt: new Date(),
   })
-  await enrichFixture()
   await page.reload()
 
   await expect(page.getByText("🍅 85%")).toBeVisible()
