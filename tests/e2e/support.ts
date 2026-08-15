@@ -2,10 +2,10 @@ import { expect } from "@playwright/test"
 import { eq } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
-import { films } from "@/db/schema"
+import { films, user, userSettings } from "@/db/schema"
 import { filmFixture } from "@/test/film-fixture"
 import type { Page } from "@playwright/test"
-import type { Film } from "@/db/schema"
+import type { Film, Shelf } from "@/db/schema"
 
 export interface TestAccount {
   name: string
@@ -88,6 +88,27 @@ export async function seedFilm(
   const sql = postgres(process.env.DATABASE_URL_ADMIN!, { max: 1 })
   try {
     await drizzle(sql).update(films).set(row).where(eq(films.title, title))
+  } finally {
+    await sql.end()
+  }
+}
+
+/**
+ * The layout as it is saved, not as the page draws it. Pins, exclusions and
+ * hand-arranged orders hold film ids that no screen shows, so a test that
+ * asks what became of them must read the row. The admin role makes the
+ * read, because it bypasses row-level security.
+ */
+export async function savedShelves(email: string): Promise<Shelf[]> {
+  const sql = postgres(process.env.DATABASE_URL_ADMIN!, { max: 1 })
+  try {
+    const rows = await drizzle(sql)
+      .select({ shelves: userSettings.shelves })
+      .from(userSettings)
+      .innerJoin(user, eq(user.id, userSettings.userId))
+      .where(eq(user.email, email))
+      .limit(1)
+    return rows.at(0)?.shelves ?? []
   } finally {
     await sql.end()
   }

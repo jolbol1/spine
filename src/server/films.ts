@@ -1,9 +1,10 @@
 import { createServerFn } from "@tanstack/react-start"
 import { asc, eq } from "drizzle-orm"
 import { z } from "zod"
-import { films, withUser } from "@/db"
+import { films, userSettings, withUser } from "@/db"
 import { filmFormatSchema } from "@/lib/film-formats"
 import { toSortTitle } from "@/lib/film-helpers"
+import { forgetFilms } from "@/lib/shelves"
 import { isCriterionLabel, lookupSpine } from "@/server/criterion-data"
 import { authMiddleware } from "@/server/middleware"
 import { fetchRtScores } from "@/server/rottentomatoes"
@@ -189,9 +190,24 @@ export const deleteFilmFn = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(z.object({ id: z.string().uuid() }))
   .handler(async ({ context, data }) => {
-    await withUser(context.userId, (tx) =>
-      tx.delete(films).where(eq(films.id, data.id))
-    )
+    await withUser(context.userId, async (tx) => {
+      await tx.delete(films).where(eq(films.id, data.id))
+      // A film that leaves the collection leaves the shelves with it: no
+      // pin, no exclusion and no slot in a hand-arranged order stays behind.
+      const rows = await tx
+        .select({ shelves: userSettings.shelves })
+        .from(userSettings)
+        .where(eq(userSettings.userId, context.userId))
+        .limit(1)
+      const shelves = rows.at(0)?.shelves
+      if (!shelves) return
+      const pruned = forgetFilms(shelves, [data.id])
+      if (pruned === shelves) return
+      await tx
+        .update(userSettings)
+        .set({ shelves: pruned })
+        .where(eq(userSettings.userId, context.userId))
+    })
     return { ok: true }
   })
 

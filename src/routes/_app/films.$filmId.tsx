@@ -127,7 +127,12 @@ function FilmDetailPage() {
   const remove = useMutation({
     mutationFn: deleteFilmFn,
     onSuccess: async () => {
-      await invalidate()
+      // The delete also prunes the film from the shelves, so the saved
+      // layout in the settings cache is stale too.
+      await Promise.all([
+        invalidate(),
+        queryClient.invalidateQueries({ queryKey: ["settings"] }),
+      ])
       toast.success("Removed from collection")
       await navigate({ to: "/" })
     },

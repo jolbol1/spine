@@ -46,10 +46,20 @@ import {
   assignFilms,
   assignWishlist,
   buildTemplateShelves,
+  clearHandArrangedOrder,
+  excludeFilmFromShelf,
   ghostInsertionIndex,
   isNewSinceArranged,
+  markShelvesArranged,
+  moveFilmOnShelf,
+  moveShelf,
+  moveShelfBefore,
+  pinFilmToShelf,
+  removeShelf,
   shelfGroupKey,
   shelfOverflow,
+  unpinFilm,
+  upsertShelf,
 } from "@/lib/shelves"
 import { saveShelvesFn } from "@/server/settings"
 import { cn } from "@/lib/utils"
@@ -304,43 +314,20 @@ function ShelvesPage() {
     setBuilderOpen(true)
   }
   const onSaveShelf = (shelf: Shelf) => {
-    const exists = shelves.some((s) => s.id === shelf.id)
-    update(
-      exists
-        ? shelves.map((s) => (s.id === shelf.id ? shelf : s))
-        : [...shelves, shelf]
-    )
+    update(upsertShelf(shelves, shelf))
     toast.success(`Shelf “${shelf.name}” saved`)
   }
   const deleteShelf = (id: string) => {
     const shelf = shelves.find((s) => s.id === id)
-    update(shelves.filter((s) => s.id !== id))
+    update(removeShelf(shelves, id))
     if (shelf) toast.success(`Shelf “${shelf.name}” deleted`)
   }
-  const moveShelf = (id: string, delta: -1 | 1) => {
-    const index = shelves.findIndex((s) => s.id === id)
-    const target = index + delta
-    if (target < 0 || target >= shelves.length) return
-    const next = [...shelves]
-    ;[next[index], next[target]] = [next[target], next[index]]
-    update(next)
-  }
   const dropShelf = (targetId: string) => {
-    if (!draggingId || draggingId === targetId) return
-    const next = shelves.filter((s) => s.id !== draggingId)
-    const dragged = shelves.find((s) => s.id === draggingId)!
-    next.splice(
-      next.findIndex((s) => s.id === targetId),
-      0,
-      dragged
-    )
-    update(next)
+    if (!draggingId) return
+    update(moveShelfBefore(shelves, draggingId, targetId))
   }
   const markArranged = (ids: string[]) => {
-    const now = new Date().toISOString()
-    update(
-      shelves.map((s) => (ids.includes(s.id) ? { ...s, arrangedAt: now } : s))
-    )
+    update(markShelvesArranged(shelves, ids, new Date().toISOString()))
     toast.success(
       ids.length === 1 ? "Shelf marked arranged" : "All shelves marked arranged"
     )
@@ -358,55 +345,25 @@ function ShelvesPage() {
 
   // ---- Film-level actions ---------------------------------------------
   const pinTo = (filmId: string, shelfId: string) =>
-    update(
-      shelves.map((s) => ({
-        ...s,
-        pinned:
-          s.id === shelfId
-            ? [...(s.pinned ?? []).filter((id) => id !== filmId), filmId]
-            : s.pinned?.filter((id) => id !== filmId),
-        excluded:
-          s.id === shelfId
-            ? s.excluded?.filter((id) => id !== filmId)
-            : s.excluded,
-      }))
-    )
-  const unpin = (filmId: string) =>
-    update(
-      shelves.map((s) => ({
-        ...s,
-        pinned: s.pinned?.filter((id) => id !== filmId),
-      }))
-    )
+    update(pinFilmToShelf(shelves, filmId, shelfId))
+  const unpin = (filmId: string) => update(unpinFilm(shelves, filmId))
   const excludeFrom = (filmId: string, shelfId: string) =>
-    update(
-      shelves.map((s) =>
-        s.id === shelfId
-          ? {
-              ...s,
-              excluded: [...(s.excluded ?? []), filmId],
-              pinned: s.pinned?.filter((id) => id !== filmId),
-            }
-          : s
-      )
-    )
+    update(excludeFilmFromShelf(shelves, filmId, shelfId))
   const nudge = (shelfId: string, index: number, delta: -1 | 1) => {
     const ordered = assignment.byShelf.get(shelfId)
     if (!ordered) return
-    const ids = ordered.map((f) => f.id)
-    const target = index + delta
-    if (target < 0 || target >= ids.length) return
-    ;[ids[index], ids[target]] = [ids[target], ids[index]]
     update(
-      shelves.map((s) => (s.id === shelfId ? { ...s, manualOrder: ids } : s))
+      moveFilmOnShelf(
+        shelves,
+        shelfId,
+        ordered.map((f) => f.id),
+        index,
+        delta
+      )
     )
   }
   const clearManualOrder = (shelfId: string) =>
-    update(
-      shelves.map((s) =>
-        s.id === shelfId ? { ...s, manualOrder: undefined } : s
-      )
-    )
+    update(clearHandArrangedOrder(shelves, shelfId))
 
   // ---- Empty state ------------------------------------------------------
   if (shelves.length === 0) {
@@ -598,7 +555,7 @@ function ShelvesPage() {
                   size="icon"
                   aria-label={`Move ${shelf.name} up`}
                   disabled={shelfIndex === 0}
-                  onClick={() => moveShelf(shelf.id, -1)}
+                  onClick={() => update(moveShelf(shelves, shelf.id, -1))}
                 >
                   <ArrowUp className="size-4" />
                 </Button>
@@ -607,7 +564,7 @@ function ShelvesPage() {
                   size="icon"
                   aria-label={`Move ${shelf.name} down`}
                   disabled={shelfIndex === shelves.length - 1}
-                  onClick={() => moveShelf(shelf.id, 1)}
+                  onClick={() => update(moveShelf(shelves, shelf.id, 1))}
                 >
                   <ArrowDown className="size-4" />
                 </Button>
