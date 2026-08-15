@@ -3,18 +3,18 @@ import type { CastMember, Film, TmdbDetails } from "@/db/schema"
 /**
  * What fetched metadata does to a film. The rules are written once here:
  *
- * - A blank column is filled from whichever source knows it.
- * - A column the user set is never overwritten.
- * - The disc source describes the copy on the shelf, so it wins over the
- *   metadata source wherever both know a column.
- * - A lookup that ran is recorded as attempted, matched or not, so a later
- *   sweep can tell "never tried" from "tried and found nothing". Only the
- *   review scores have a column for this, so only they record it.
- * - Columns only a source writes — the TMDB match, the review scores — are
- *   replaced by what that source last returned.
+ * - A blank field is filled from whichever source knows it.
+ * - A field the user set is never overwritten.
+ * - The disc source describes the copy on the shelf. It thus wins over the
+ *   metadata source wherever both know a field.
+ * - A lookup that ran is recorded as attempted, matched or not. A later
+ *   sweep can then tell "never tried" from "tried and found nothing". Only
+ *   the review scores have a field for this record.
+ * - Fields that only a source writes — the TMDB match, the review scores —
+ *   are replaced by what that source last returned.
  *
- * Fetching stays outside: the merge takes what the sources returned and
- * returns the columns to write, so it needs no network and no database.
+ * Fetching stays outside. The merge takes what the sources returned and
+ * gives back the fields to write. It thus needs no network and no database.
  *
  * The review-score sync and refresh merge here today. The remaining write
  * paths — adding a film, syncing cast, syncing details, rematching an
@@ -22,11 +22,11 @@ import type { CastMember, Film, TmdbDetails } from "@/db/schema"
  */
 
 /**
- * Every column a source may fill. A source fills one of these only when the
+ * Every field a source may fill. A source fills one of these only when the
  * film leaves it blank, so a value the user typed is never overwritten.
- * Adding a fillable column is one edit here.
+ * A new fillable field is one edit to this list.
  *
- * Format and disc count are absent on purpose: both are NOT NULL with a
+ * Format and disc count are absent on purpose. Both are NOT NULL with a
  * default, so they have no blank state for a source to fill. They reach a
  * film through the add form, where the user sees them before they are saved.
  */
@@ -47,18 +47,18 @@ const FILLABLE_FIELDS = [
 
 type FillableField = (typeof FILLABLE_FIELDS)[number]
 
-/** Some of the columns a source may fill. */
-type FillableColumns = Partial<Pick<Film, FillableField>>
+/** Some of the fields a source may fill. */
+type FillableFields = Partial<Pick<Film, FillableField>>
 
 /**
- * What the merge reads off the film. Every fillable column is required: a
- * query that selects only some of them makes the columns it left out look
+ * What the merge reads off the film. Every fillable field is required. A
+ * query that selects only some of them makes the fields it left out look
  * blank, and the merge would then overwrite a value the user set.
  */
 export type EnrichableFilm = Pick<Film, FillableField>
 
 /** What the disc source (Blu-ray.com, CEX) knows about the physical copy. */
-export type DiscEnrichment = FillableColumns
+export type DiscEnrichment = FillableFields
 
 /** What the metadata source (TMDB) returned for one film. */
 export interface TmdbEnrichment {
@@ -71,7 +71,10 @@ export interface TmdbEnrichment {
   details?: TmdbDetails | null
 }
 
-/** What the review-score source (Rotten Tomatoes) returned for one film. */
+/**
+ * What the review-score source (Rotten Tomatoes) returned for one film.
+ * `src/server/rottentomatoes.ts` returns this shape as `RtResult`.
+ */
 export interface RtEnrichment {
   url: string
   criticsScore: number | null
@@ -91,7 +94,7 @@ export interface EnrichmentSources {
   criterionSpine?: number | null
 }
 
-/** The columns an enrichment run writes back to the film. */
+/** The fields an enrichment run writes back to the film. */
 export type FilmEnrichmentPatch = Partial<
   Pick<
     Film,
@@ -107,15 +110,15 @@ export type FilmEnrichmentPatch = Partial<
   >
 >
 
-/** A stored value counts as blank when nothing meaningful is in it. */
+/** A stored value is blank when it is absent, or is spaces only. */
 function isBlank(value: unknown): boolean {
   return value == null || (typeof value === "string" && value.trim() === "")
 }
 
 /**
- * Write one fillable column. The type parameter is what lets the column be
- * written through a name the loop holds; it does not check the value against
- * that one column, so pass a value the offer itself carried.
+ * Write one fillable field, named by a value the loop holds. The type
+ * parameter permits the write. It does not check the value against that one
+ * field. Pass only a value that the offer for that field carried.
  */
 function fill<TField extends FillableField>(
   patch: FilmEnrichmentPatch,
@@ -125,10 +128,10 @@ function fill<TField extends FillableField>(
   patch[field] = value
 }
 
-/** The metadata source, expressed as the columns it can fill. */
-function metadataFill(
+/** The TMDB match, expressed as the fields it can fill. */
+function tmdbFillableFields(
   tmdb: TmdbEnrichment | null | undefined
-): FillableColumns {
+): FillableFields {
   if (!tmdb) return {}
   return {
     director: tmdb.directors.join(", ") || null,
@@ -137,9 +140,9 @@ function metadataFill(
 }
 
 /**
- * Decide what fetched metadata does to a film: given the film and what the
- * sources returned, produce the columns to write. No fetching happens here.
- * `now` is a parameter so a merge is reproducible in tests.
+ * Decide what fetched metadata does to a film. Take the film and what the
+ * sources returned, and give back the fields to write. No fetching happens
+ * here. `now` is a parameter, so that a merge is reproducible in tests.
  */
 export function mergeEnrichment(
   film: EnrichableFilm,
@@ -149,7 +152,7 @@ export function mergeEnrichment(
   const patch: FilmEnrichmentPatch = {}
   const offers = [
     sources.disc ?? {},
-    metadataFill(sources.tmdb),
+    tmdbFillableFields(sources.tmdb),
     { spineNumber: sources.criterionSpine },
   ]
 
@@ -159,9 +162,9 @@ export function mergeEnrichment(
     if (offered != null) fill(patch, field, offered)
   }
 
-  // The match itself is the source's to own — nothing else writes these —
-  // so a fresh match replaces the stored one. Details are the exception:
-  // a match carrying none must not erase details an earlier run stored.
+  // Nothing but the source writes the match, so a new match replaces the
+  // stored one. Details are the exception. A match that carries none must
+  // not erase the details that an earlier run stored.
   if (sources.tmdb) {
     patch.tmdbId = sources.tmdb.tmdbId
     patch.tmdbMediaType = sources.tmdb.mediaType
@@ -169,8 +172,8 @@ export function mergeEnrichment(
     if (sources.tmdb.details) patch.tmdbDetails = sources.tmdb.details
   }
 
-  // Scores belong to the source, not to the user, so a lookup that ran
-  // replaces them outright — a miss clears scores that no longer hold.
+  // The scores belong to the source, not to the user. A lookup that ran
+  // thus replaces them. A miss clears scores that no longer hold.
   if (sources.rt !== undefined) {
     patch.rtUrl = sources.rt?.url ?? null
     patch.rtCriticsScore = sources.rt?.criticsScore ?? null

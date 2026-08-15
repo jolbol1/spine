@@ -3,6 +3,7 @@ import { eq, isNull } from "drizzle-orm"
 import { z } from "zod"
 import { films, withUser } from "@/db"
 import { mergeEnrichment } from "@/lib/enrichment"
+import type { RtEnrichment } from "@/lib/enrichment"
 import { authMiddleware } from "@/server/middleware"
 import { fetchPageWithFallback } from "@/server/scrape"
 
@@ -14,11 +15,8 @@ import { fetchPageWithFallback } from "@/server/scrape"
  * direct-then-Firecrawl fetcher used by the Letterboxd sync.
  */
 
-export interface RtResult {
-  url: string
-  criticsScore: number | null
-  audienceScore: number | null
-}
+/** The merge module declares this shape, and this module returns it. */
+export type RtResult = RtEnrichment
 
 const normTitle = (s: string) =>
   s
@@ -156,6 +154,30 @@ export async function fetchRtScores(
 }
 
 /**
+ * Every field the merge reads, plus the three the scrape itself needs. The
+ * merge must see each fillable field, or a field left out of the query looks
+ * blank and a value the user set could be overwritten. The two JSON columns
+ * stay out, because a sweep reads every pending film into memory.
+ */
+const mergeColumns = {
+  id: films.id,
+  title: films.title,
+  tmdbMediaType: films.tmdbMediaType,
+  director: films.director,
+  year: films.year,
+  coverUrl: films.coverUrl,
+  runtimeMinutes: films.runtimeMinutes,
+  spineNumber: films.spineNumber,
+  label: films.label,
+  edition: films.edition,
+  packageType: films.packageType,
+  audio: films.audio,
+  hdr: films.hdr,
+  region: films.region,
+  barcode: films.barcode,
+}
+
+/**
  * Backfill scores for films never scraped before (rt_synced_at is null).
  * Attempts are recorded even when unmatched so the sync doesn't rescan the
  * same misses forever — use the per-film refresh to retry one title.
@@ -163,10 +185,8 @@ export async function fetchRtScores(
 export const syncRottenTomatoesFn = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
-    // The whole row: the merge reads every column a source could fill, so
-    // that a value the user set is never mistaken for a blank one.
     const pending = await withUser(context.userId, (tx) =>
-      tx.select().from(films).where(isNull(films.rtSyncedAt))
+      tx.select(mergeColumns).from(films).where(isNull(films.rtSyncedAt))
     )
 
     let updated = 0
@@ -205,7 +225,7 @@ export const refreshRtScoresFn = createServerFn({ method: "POST" })
   .validator(z.object({ id: z.string().uuid() }))
   .handler(async ({ context, data }) => {
     const rows = await withUser(context.userId, (tx) =>
-      tx.select().from(films).where(eq(films.id, data.id)).limit(1)
+      tx.select(mergeColumns).from(films).where(eq(films.id, data.id)).limit(1)
     )
     const film = rows.at(0)
     if (!film) return { ok: false as const, error: "Film not found." }
