@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
-import type { Film, Shelf, WishlistItem } from "@/db/schema"
-import { toSortTitle } from "./film-helpers"
+import { filmFixture, tmdbDetailsFixture } from "@/test/film-fixture"
+import type { Shelf, WishlistItem } from "@/db/schema"
 import {
   assignFilms,
   assignWishlist,
@@ -13,50 +13,6 @@ import {
   shelfFieldOptions,
   shelfOverflow,
 } from "./shelves"
-
-let nextId = 0
-
-function film(overrides: Partial<Film> & { title: string }): Film {
-  return {
-    id: `film-${++nextId}-${overrides.title}`,
-    userId: "u1",
-    sortTitle: toSortTitle(overrides.title),
-    director: null,
-    year: 2000,
-    format: "Blu-ray",
-    audio: null,
-    hdr: null,
-    region: null,
-    label: null,
-    edition: null,
-    packageType: null,
-    spineNumber: null,
-    runtimeMinutes: null,
-    discCount: 1,
-    barcode: null,
-    coverUrl: null,
-    notes: null,
-    pricePaid: null,
-    tmdbId: null,
-    tmdbMediaType: "movie",
-    tmdbCast: null,
-    tmdbDetails: null,
-    rtUrl: null,
-    rtCriticsScore: null,
-    rtAudienceScore: null,
-    rtSyncedAt: null,
-    letterboxdWatched: false,
-    letterboxdWatchedAt: null,
-    letterboxdRating: null,
-    letterboxdUri: null,
-    letterboxdReview: null,
-    letterboxdLiked: null,
-    watchedOverride: null,
-    createdAt: new Date("2026-01-01"),
-    updatedAt: new Date("2026-01-01"),
-    ...overrides,
-  }
-}
 
 const shelf = (overrides: Partial<Shelf> & { name: string }): Shelf => ({
   id: `shelf-${overrides.name}`,
@@ -75,23 +31,23 @@ describe("rule matching", () => {
     })
     expect(
       matchesShelfRules(
-        film({ title: "A", label: "Arrow", format: "4K UHD" }),
+        filmFixture({ title: "A", label: "Arrow", format: "4K UHD" }),
         s
       )
     ).toBe(true)
-    expect(matchesShelfRules(film({ title: "B", label: "Arrow" }), s)).toBe(
-      false
-    )
+    expect(
+      matchesShelfRules(filmFixture({ title: "B", label: "Arrow" }), s)
+    ).toBe(false)
     expect(
       matchesShelfRules(
-        film({ title: "C", label: "MUBI", format: "4K UHD" }),
+        filmFixture({ title: "C", label: "MUBI", format: "4K UHD" }),
         s
       )
     ).toBe(false)
   })
 
   it("treats unmatched titles as movies and missing HDR as SDR", () => {
-    const movie = film({ title: "Mystery", tmdbMediaType: null })
+    const movie = filmFixture({ title: "Mystery", tmdbMediaType: null })
     expect(
       matchesShelfRules(
         movie,
@@ -107,20 +63,20 @@ describe("rule matching", () => {
   })
 
   it("matches genre when any film genre is wanted", () => {
-    const horror = film({
+    const horror = filmFixture({
       title: "It",
-      tmdbDetails: { genres: ["Horror", "Thriller"] } as Film["tmdbDetails"],
+      tmdbDetails: tmdbDetailsFixture({ genres: ["Horror", "Thriller"] }),
     })
     const s = shelf({
       name: "Spooky",
       rules: [{ field: "genre", values: ["Horror"] }],
     })
     expect(matchesShelfRules(horror, s)).toBe(true)
-    expect(matchesShelfRules(film({ title: "Up" }), s)).toBe(false)
+    expect(matchesShelfRules(filmFixture({ title: "Up" }), s)).toBe(false)
   })
 
   it("empty rule lists and empty value lists match everything", () => {
-    const f = film({ title: "Anything" })
+    const f = filmFixture({ title: "Anything" })
     expect(matchesShelfRules(f, shelf({ name: "All" }))).toBe(true)
     expect(
       matchesShelfRules(
@@ -132,21 +88,21 @@ describe("rule matching", () => {
 })
 
 describe("assignment", () => {
-  const criterion4k = film({
+  const criterion4k = filmFixture({
     title: "Risky Business",
     label: "Criterion",
     format: "4K UHD",
     spineNumber: 1227,
   })
-  const criterionBd = film({
+  const criterionBd = filmFixture({
     title: "Anora",
     label: "Criterion",
     spineNumber: 1259,
   })
-  const plain4k = film({ title: "Dune", format: "4K UHD" })
-  const plainBd = film({ title: "Rush" })
-  const plainDvd = film({ title: "Big Fish", format: "DVD" })
-  const tvDvd = film({
+  const plain4k = filmFixture({ title: "Dune", format: "4K UHD" })
+  const plainBd = filmFixture({ title: "Rush" })
+  const plainDvd = filmFixture({ title: "Big Fish", format: "DVD" })
+  const tvDvd = filmFixture({
     title: "Succession",
     format: "DVD",
     tmdbMediaType: "tv",
@@ -208,7 +164,7 @@ describe("assignment", () => {
   })
 
   it("sends films matching nothing to the unshelved tray", () => {
-    const vhs = film({ title: "Odd One", format: "VHS" })
+    const vhs = filmFixture({ title: "Odd One", format: "VHS" })
     const { unshelved } = assignFilms([vhs], layout)
     expect(unshelved.map((f) => f.title)).toEqual(["Odd One"])
   })
@@ -241,10 +197,10 @@ describe("ordering", () => {
       sort: [{ key: "year", dir: "desc" }, { key: "title" }],
     })
     const ordered = orderShelfFilms(s, [
-      film({ title: "Old", year: 1990 }),
-      film({ title: "Unknown", year: null }),
-      film({ title: "New", year: 2024 }),
-      film({ title: "Also New", year: 2024 }),
+      filmFixture({ title: "Old", year: 1990 }),
+      filmFixture({ title: "Unknown", year: null }),
+      filmFixture({ title: "New", year: 2024 }),
+      filmFixture({ title: "Also New", year: 2024 }),
     ])
     expect(ordered.map((f) => f.title)).toEqual([
       "Also New",
@@ -257,18 +213,18 @@ describe("ordering", () => {
   it("groups contiguously by label with ungrouped films last", () => {
     const s = shelf({ name: "S", groupBy: "label" })
     const ordered = orderShelfFilms(s, [
-      film({ title: "Zed", label: "Arrow" }),
-      film({ title: "Mid", label: null }),
-      film({ title: "Ace", label: "MUBI" }),
-      film({ title: "Bee", label: "Arrow" }),
+      filmFixture({ title: "Zed", label: "Arrow" }),
+      filmFixture({ title: "Mid", label: null }),
+      filmFixture({ title: "Ace", label: "MUBI" }),
+      filmFixture({ title: "Bee", label: "Arrow" }),
     ])
     expect(ordered.map((f) => f.title)).toEqual(["Bee", "Zed", "Ace", "Mid"])
   })
 
   it("manual order pulls listed ids to the front, rest stay sorted", () => {
-    const a = film({ title: "Alpha" })
-    const b = film({ title: "Beta" })
-    const c = film({ title: "Gamma" })
+    const a = filmFixture({ title: "Alpha" })
+    const b = filmFixture({ title: "Beta" })
+    const c = filmFixture({ title: "Gamma" })
     const s = shelf({ name: "S", manualOrder: [c.id, a.id] })
     expect(orderShelfFilms(s, [a, b, c]).map((f) => f.title)).toEqual([
       "Gamma",
@@ -282,9 +238,9 @@ describe("capacity and arranging", () => {
   it("flags films past capacity as the spill", () => {
     const s = shelf({ name: "S", capacity: 2 })
     const ordered = orderShelfFilms(s, [
-      film({ title: "A" }),
-      film({ title: "B" }),
-      film({ title: "C" }),
+      filmFixture({ title: "A" }),
+      filmFixture({ title: "B" }),
+      filmFixture({ title: "C" }),
     ])
     expect(shelfOverflow(s, ordered).map((f) => f.title)).toEqual(["C"])
     expect(shelfOverflow(shelf({ name: "N" }), ordered)).toEqual([])
@@ -295,37 +251,39 @@ describe("capacity and arranging", () => {
     expect(
       isNewSinceArranged(
         s,
-        film({ title: "New", createdAt: new Date("2026-07-01") })
+        filmFixture({ title: "New", createdAt: new Date("2026-07-01") })
       )
     ).toBe(true)
     expect(
       isNewSinceArranged(
         s,
-        film({ title: "Old", createdAt: new Date("2026-05-01") })
+        filmFixture({ title: "Old", createdAt: new Date("2026-05-01") })
       )
     ).toBe(false)
     expect(
-      isNewSinceArranged(shelf({ name: "Never" }), film({ title: "Any" }))
+      isNewSinceArranged(
+        shelf({ name: "Never" }),
+        filmFixture({ title: "Any" })
+      )
     ).toBe(false)
   })
 })
 
 describe("wishlist ghosts", () => {
-  const wish = (overrides: Partial<WishlistItem> & { title: string }) =>
-    ({
-      id: `wish-${overrides.title}`,
-      userId: "u1",
-      director: null,
-      year: null,
-      format: null,
-      url: null,
-      retailer: null,
-      price: null,
-      coverUrl: null,
-      notes: null,
-      createdAt: new Date("2026-01-01"),
-      ...overrides,
-    })
+  const wish = (overrides: Partial<WishlistItem> & { title: string }) => ({
+    id: `wish-${overrides.title}`,
+    userId: "u1",
+    director: null,
+    year: null,
+    format: null,
+    url: null,
+    retailer: null,
+    price: null,
+    coverUrl: null,
+    notes: null,
+    createdAt: new Date("2026-01-01"),
+    ...overrides,
+  })
 
   it("assigns ghosts only to shelves whose rules a wishlist item can satisfy", () => {
     const shelves = [
@@ -352,9 +310,9 @@ describe("wishlist ghosts", () => {
 
   it("computes the alphabetical insertion slot for a ghost", () => {
     const ordered = [
-      film({ title: "Alien" }),
-      film({ title: "Dune" }),
-      film({ title: "Zodiac" }),
+      filmFixture({ title: "Alien" }),
+      filmFixture({ title: "Dune" }),
+      filmFixture({ title: "Zodiac" }),
     ]
     expect(ghostInsertionIndex(ordered, wish({ title: "The Batman" }))).toBe(1)
     expect(ghostInsertionIndex(ordered, wish({ title: "Zulu" }))).toBe(3)
@@ -363,12 +321,16 @@ describe("wishlist ghosts", () => {
 
 describe("templates", () => {
   const collection = [
-    film({ title: "Anora", label: "Criterion", spineNumber: 1259 }),
-    film({ title: "Queer", label: "MUBI", format: "4K UHD" }),
-    film({ title: "Flow", label: "Curzon Film World", format: "4K UHD" }),
-    film({ title: "Dune", label: "Warner Bros.", format: "4K UHD" }),
-    film({ title: "Rush", label: "Studio Canal" }),
-    film({ title: "Succession", format: "DVD", tmdbMediaType: "tv" }),
+    filmFixture({ title: "Anora", label: "Criterion", spineNumber: 1259 }),
+    filmFixture({ title: "Queer", label: "MUBI", format: "4K UHD" }),
+    filmFixture({
+      title: "Flow",
+      label: "Curzon Film World",
+      format: "4K UHD",
+    }),
+    filmFixture({ title: "Dune", label: "Warner Bros.", format: "4K UHD" }),
+    filmFixture({ title: "Rush", label: "Studio Canal" }),
+    filmFixture({ title: "Succession", format: "DVD", tmdbMediaType: "tv" }),
   ]
 
   it("finds boutique labels loosely, including expanded names", () => {
@@ -411,7 +373,9 @@ describe("templates", () => {
   })
 
   it("omits the boutique shelf when no boutique labels exist", () => {
-    const shelves = buildTemplateShelves("boutique", [film({ title: "Rush" })])
+    const shelves = buildTemplateShelves("boutique", [
+      filmFixture({ title: "Rush" }),
+    ])
     expect(shelves.map((s) => s.name)).toEqual([
       "4K UHD",
       "Blu-ray",

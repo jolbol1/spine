@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { Film } from "@/db/schema"
+import { filmFixture } from "@/test/film-fixture"
 import {
   cleanBlurayTitle,
   emptyFilmValues,
@@ -44,27 +44,27 @@ describe("film form boundary", () => {
   })
 
   it("round-trips stored nullable metadata into editable strings", () => {
-    const film = {
+    const film = filmFixture({
       title: "Stored Film",
       director: null,
-      year: 1999,
-      format: "DVD",
       audio: null,
       hdr: null,
-      region: "2",
       label: null,
       edition: null,
-      packageType: "Digipack",
       spineNumber: null,
-      runtimeMinutes: 100,
-      discCount: 2,
       barcode: null,
       coverUrl: null,
       notes: null,
+      year: 1999,
+      format: "DVD",
+      region: "2",
+      packageType: "Digipack",
+      runtimeMinutes: 100,
+      discCount: 2,
       pricePaid: "9.50",
       tmdbId: 603,
       tmdbMediaType: "movie",
-    } as Film
+    })
 
     expect(filmToValues(film)).toEqual({
       ...emptyFilmValues,
