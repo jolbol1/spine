@@ -77,8 +77,9 @@ function AddFilmPage() {
     mutationFn: (cexId: string) => importCexFn({ data: { barcode: cexId } }),
     onSuccess: (result) => {
       if (result.success) {
-        setImported(cexToValues(result.data))
-        setFormKey((k) => k + 1)
+        // Same step as the Blu-ray.com auto-import: merge the barcode
+        // the scanner handed over in the URL.
+        applyImport(cexToValues(result.data))
       } else {
         toast.error(result.error)
       }
