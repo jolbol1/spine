@@ -12,6 +12,7 @@ import {
   cexIdFromUrl,
   cexToValues,
   scrapeToValues,
+  withScannedBarcode,
 } from "@/lib/import-mappers"
 import { searchBlurayFn, importBlurayUrlFn } from "@/server/bluray"
 import type { BlurayResult } from "@/server/bluray"
@@ -106,11 +107,7 @@ export function BlurayImportBox({
       setValue("")
       setResults([])
       setWebMatches([])
-      onImport({
-        ...result.values,
-        // Imports don't know the barcode that was just scanned — keep it.
-        barcode: result.values.barcode || scannedCode || "",
-      })
+      onImport(withScannedBarcode(result.values, scannedCode))
       toast.success(`Imported “${result.values.title}” from ${result.source}`)
     },
     onError: () => toast.error("Import failed"),
@@ -154,14 +151,10 @@ export function BlurayImportBox({
           setWebMatches([])
           setOpen(true)
           break
-        case "cex": {
-          // Same step as the URL import path: the import doesn't know
-          // the barcode that was just scanned — keep it.
-          const values = cexToValues(result.data)
-          onImport({ ...values, barcode: values.barcode || code })
+        case "cex":
+          onImport(withScannedBarcode(cexToValues(result.data), code))
           toast.success(`Imported “${result.data.title}” from CEX`)
           break
-        }
         case "web":
           setWebMatches(result.matches)
           setResults([])

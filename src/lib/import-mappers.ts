@@ -87,6 +87,18 @@ export function scrapeToValues(data: ScrapedProduct): FilmFormValues {
   }
 }
 
+/**
+ * Imports don't know the barcode that was just scanned — keep it.
+ * Every import path applies this same step, so a disc found on any
+ * source lands in the form with the scanned barcode filled.
+ */
+export function withScannedBarcode(
+  values: FilmFormValues,
+  scanned: string | null | undefined
+): FilmFormValues {
+  return { ...values, barcode: values.barcode || scanned || "" }
+}
+
 /** Extract the CEX box id from a uk.webuy.com product link. */
 export function cexIdFromUrl(url: URL): string | null {
   if (!/(^|\.)webuy\.com$/.test(url.hostname)) return null
