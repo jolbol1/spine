@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm"
 import { films, userSettings, withUser } from "@/db"
 import { env } from "@/env"
 import { authMiddleware } from "@/server/middleware"
-import { fetchPageWithFallback } from "@/server/scrape"
+import { fetchPage } from "@/server/page-fetch"
 
 interface RssItem {
   "letterboxd:filmTitle"?: string | number
@@ -195,7 +195,9 @@ export const syncLetterboxdFn = createServerFn({ method: "POST" })
 
 const MAX_DIARY_PAGES = 120 // ~6,000 entries — a runaway backstop
 
-const fetchLetterboxdPage = fetchPageWithFallback
+/** Once a direct fetch is blocked, later pages skip straight to Firecrawl. */
+const fetchLetterboxdPage = (url: string, preferFallback = false) =>
+  fetchPage({ url, preferFallback })
 
 function decodeHtml(s: string): string {
   return s

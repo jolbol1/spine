@@ -1,7 +1,10 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
+import { env } from "@/env"
 import { errorMessage, serverLogger } from "@/server/log"
 import { authMiddleware } from "@/server/middleware"
+import { BROWSER_UA, defaultTransport, fetchPage } from "@/server/page-fetch"
+import type { PageTransport } from "@/server/page-fetch"
 
 const log = serverLogger("bluray")
 
@@ -69,8 +72,7 @@ export const searchBlurayFn = createServerFn({ method: "GET" })
     try {
       const res = await fetch(url, {
         headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+          "User-Agent": BROWSER_UA,
           // Blu-ray.com rejects requests without an Accept-Language header
           // (200 + "error42" body). Node's fetch sends one by default; Bun's
           // — the production runtime — does not.
@@ -195,97 +197,99 @@ export function parseBlurayProductHtml(
   }
 }
 
+export type BlurayImportResult =
+  { success: true; data: BlurayImport } | { success: false; error: string }
+
+/**
+ * Blu-ray.com serves ISO-8859-1 and declares it in a meta tag some way into
+ * the page, so the port is told what to read the bytes as when that label
+ * does not survive the response.
+ */
+const BLURAY_CHARSET = "iso-8859-1"
+
+/** A missing film: sometimes a 404, sometimes a 200 saying as much. */
+const NO_SUCH_MOVIE = /No such movie/i
+
+const NOT_THERE =
+  "Blu-ray.com has no page at that link — check the address on the site."
+
 /**
  * Fetch a blu-ray.com product page and pull every field the add form needs:
  * title, year, director, format, audio, HDR, region, publisher, spine,
  * runtime, disc count, and full-size cover.
+ *
+ * Fetching goes through the outbound page-fetch port, so the import gets the
+ * same Firecrawl fallback the other sources have when the site refuses us,
+ * and the same character-set handling — accented titles come back intact.
  */
+export async function importBlurayProduct(
+  rawUrl: string,
+  transport: PageTransport = defaultTransport
+): Promise<BlurayImportResult> {
+  let parsed: URL
+  try {
+    parsed = new URL(rawUrl)
+  } catch {
+    return { success: false, error: "That's not a valid URL." }
+  }
+  const host = parsed.hostname.replace(/^(www|m|forum)\./, "")
+  if (host !== "blu-ray.com") {
+    return {
+      success: false,
+      error: "Paste a blu-ray.com product link (blu-ray.com/movies/…).",
+    }
+  }
+  parsed.hostname = "www.blu-ray.com"
+  const url = parsed.toString()
+
+  const page = await fetchPage(
+    { url, defaultCharset: BLURAY_CHARSET },
+    transport
+  )
+  if (!page.ok) {
+    log.warn("product page not fetched", { url, status: page.status })
+    if (page.status === "notfound") return { success: false, error: NOT_THERE }
+    if (page.status === "blocked") {
+      return {
+        success: false,
+        error: env.FIRECRAWL_API_KEY
+          ? "Blu-ray.com is blocking requests right now — try again in a few minutes."
+          : "Blu-ray.com is blocking this server's requests. Set FIRECRAWL_API_KEY in .env so imports can route around it.",
+      }
+    }
+    return { success: false, error: "Could not reach Blu-ray.com." }
+  }
+
+  const imported = parseBlurayProductHtml(page.html, parsed)
+  if (!imported.title) {
+    if (NO_SUCH_MOVIE.test(page.html)) {
+      log.warn("no such movie", { url })
+      return { success: false, error: NOT_THERE }
+    }
+    log.error("product page had no parseable title", {
+      url,
+      via: page.via,
+      charset: page.charset,
+      bytes: page.html.length,
+      bodyStart: page.html.slice(0, 120),
+    })
+    return {
+      success: false,
+      error:
+        "Blu-ray.com sent back a page without any disc details — try again in a minute.",
+    }
+  }
+
+  log.info("imported product page", {
+    url,
+    via: page.via,
+    title: imported.title,
+    format: imported.format,
+  })
+  return { success: true, data: imported }
+}
+
 export const importBlurayUrlFn = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(z.object({ url: z.string().trim().min(1).max(2048) }))
-  .handler(async ({ data }) => {
-    let parsed: URL
-    try {
-      parsed = new URL(data.url)
-    } catch {
-      return { success: false as const, error: "That's not a valid URL." }
-    }
-    const host = parsed.hostname.replace(/^(www|m|forum)\./, "")
-    if (host !== "blu-ray.com") {
-      return {
-        success: false as const,
-        error: "Paste a blu-ray.com product link (blu-ray.com/movies/…).",
-      }
-    }
-    parsed.hostname = "www.blu-ray.com"
-
-    let html: string
-    try {
-      const res = await fetch(parsed, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
-          Accept: "text/html",
-          // Required — see searchBlurayFn. Without it Blu-ray.com answers
-          // 200 + "error42" and the import came back with an empty title.
-          "Accept-Language": "en-GB,en;q=0.9",
-        },
-        signal: AbortSignal.timeout(15_000),
-      })
-      if (!res.ok) {
-        log.warn("product page fetch failed", {
-          url: parsed.toString(),
-          status: res.status,
-        })
-        return {
-          success: false as const,
-          error: `Blu-ray.com returned ${res.status} for that link.`,
-        }
-      }
-      // Blu-ray.com serves ISO-8859-1; fetch's .text() would assume UTF-8
-      // and mangle accented names. Sniff the meta charset and decode right.
-      const bytes = await res.arrayBuffer()
-      const sniff = new TextDecoder("latin1").decode(bytes.slice(0, 4096))
-      const charset = sniff.match(/charset=["']?([\w-]+)/i)?.[1] ?? "iso-8859-1"
-      let decoder: TextDecoder
-      try {
-        decoder = new TextDecoder(charset)
-      } catch {
-        // The sniff window can cut the label mid-token ("ISO-88") — the
-        // site is ISO-8859-1 in practice, so fall back rather than fail.
-        log.warn("unknown charset label, falling back to iso-8859-1", {
-          url: parsed.toString(),
-          charset,
-        })
-        decoder = new TextDecoder("iso-8859-1")
-      }
-      html = decoder.decode(bytes)
-    } catch (err) {
-      log.error("product page unreachable", {
-        url: parsed.toString(),
-        error: errorMessage(err),
-      })
-      return { success: false as const, error: "Could not reach Blu-ray.com." }
-    }
-
-    const imported = parseBlurayProductHtml(html, parsed)
-    if (!imported.title) {
-      log.error("product page had no parseable title", {
-        url: parsed.toString(),
-        bytes: html.length,
-        bodyStart: html.slice(0, 120),
-      })
-      return {
-        success: false as const,
-        error:
-          "Blu-ray.com sent back a page without any disc details — try again in a minute.",
-      }
-    }
-
-    log.info("imported product page", {
-      url: parsed.toString(),
-      title: imported.title,
-      format: imported.format,
-    })
-    return { success: true as const, data: imported }
-  })
+  .handler(({ data }) => importBlurayProduct(data.url))

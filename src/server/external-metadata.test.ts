@@ -19,6 +19,7 @@ import { fetchRtScores } from "@/server/rottentomatoes"
 import { fetchTmdbById, searchTmdbTitles } from "@/server/tmdb"
 import { cleanWebTitle } from "@/server/websearch"
 import { detectRetailer, extractPrice } from "@/server/wishlist"
+import { fixtureTransport } from "@/test/fixture-transport"
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -167,22 +168,18 @@ describe("external metadata fixtures", () => {
   })
 
   it("scrapes Rotten Tomatoes search and score fixtures", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: string | URL | Request) => {
-        const url = String(input)
-        if (url.includes("/search?")) {
-          return new Response(
-            `<search-page-media-row release-year="1982"><a href="https://www.rottentomatoes.com/m/the_thing_1982" slot="title">The Thing</a></search-page-media-row>`
-          )
-        }
-        return new Response(
-          `<script>{"criticsScore":{"score":85},"audienceScore":{"score":"92"}}</script>`
-        )
-      })
-    )
+    const transport = fixtureTransport({
+      "https://www.rottentomatoes.com/search?search=The%20Thing": {
+        body: `<search-page-media-row release-year="1982"><a href="https://www.rottentomatoes.com/m/the_thing_1982" slot="title">The Thing</a></search-page-media-row>`,
+      },
+      "https://www.rottentomatoes.com/m/the_thing_1982": {
+        body: `<script>{"criticsScore":{"score":85},"audienceScore":{"score":"92"}}</script>`,
+      },
+    })
 
-    await expect(fetchRtScores("The Thing", 1982, "movie")).resolves.toEqual({
+    await expect(
+      fetchRtScores("The Thing", 1982, "movie", transport)
+    ).resolves.toEqual({
       url: "https://www.rottentomatoes.com/m/the_thing_1982",
       criticsScore: 85,
       audienceScore: 92,

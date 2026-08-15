@@ -4,14 +4,15 @@ import { z } from "zod"
 import { films, withUser } from "@/db"
 import { toRtScoreUpdate } from "@/lib/rt-score-update"
 import { authMiddleware } from "@/server/middleware"
-import { fetchPageWithFallback } from "@/server/scrape"
+import { defaultTransport, fetchPage } from "@/server/page-fetch"
+import type { PageTransport } from "@/server/page-fetch"
 
 /**
  * Rotten Tomatoes has no public API — scores are scraped from the site.
  * The search page renders <search-page-media-row> elements with the film
  * URL and release year; the film page embeds `criticsScore` / `audienceScore`
- * JSON blobs in its scripts. Both routes go through the shared
- * direct-then-Firecrawl fetcher used by the Letterboxd sync.
+ * JSON blobs in its scripts. Both routes go through the outbound page-fetch
+ * port, so both get the Firecrawl fallback when RT refuses this server.
  */
 
 export interface RtResult {
@@ -68,10 +69,14 @@ function parseSearchRows(html: string): SearchRow[] {
 async function searchRtUrl(
   title: string,
   year: number | null,
-  mediaType: "movie" | "tv" | null
+  mediaType: "movie" | "tv" | null,
+  transport: PageTransport
 ): Promise<string | null> {
-  const page = await fetchPageWithFallback(
-    `https://www.rottentomatoes.com/search?search=${encodeURIComponent(title)}`
+  const page = await fetchPage(
+    {
+      url: `https://www.rottentomatoes.com/search?search=${encodeURIComponent(title)}`,
+    },
+    transport
   )
   if (!page.ok) return null
 
@@ -142,11 +147,12 @@ function extractScoreObject(html: string, key: string): number | null {
 export async function fetchRtScores(
   title: string,
   year: number | null,
-  mediaType: "movie" | "tv" | null
+  mediaType: "movie" | "tv" | null,
+  transport: PageTransport = defaultTransport
 ): Promise<RtResult | null> {
-  const url = await searchRtUrl(title, year, mediaType)
+  const url = await searchRtUrl(title, year, mediaType, transport)
   if (!url) return null
-  const page = await fetchPageWithFallback(url)
+  const page = await fetchPage({ url }, transport)
   if (!page.ok) return null
   return {
     url,
