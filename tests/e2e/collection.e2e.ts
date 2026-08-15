@@ -127,3 +127,53 @@ test("collection browse state and saved views survive navigation", async ({
     page.getByRole("link", { name: /The Alpha Film/ }).first()
   ).toBeVisible()
 })
+
+test("saved views are manageable entirely by keyboard", async ({ page }) => {
+  await signUp(page, accountFor("views-keyboarder"))
+  await addFilm(page, { title: "Keyboard Film" })
+  await page.goto("/")
+
+  // Seed one saved view (the save dialog is already keyboard-friendly).
+  await page.getByRole("button", { name: "Views" }).click()
+  await page.getByRole("menuitem", { name: "Save current view…" }).click()
+  const saveDialog = page.getByRole("dialog", { name: "Save current view" })
+  await saveDialog.getByLabel("Name").fill("Everything")
+  await saveDialog.getByRole("button", { name: "Save view" }).click()
+  await expect(saveDialog).toBeHidden()
+
+  // Walk the menu with arrows until the wanted item holds focus.
+  const arrowTo = async (name: string | RegExp) => {
+    const item = page.getByRole("menuitem", { name })
+    for (let presses = 0; presses < 10; presses++) {
+      if (await item.evaluate((el) => el === document.activeElement)) return
+      await page.keyboard.press("ArrowDown")
+    }
+    await expect(item).toBeFocused()
+  }
+
+  // Keyboard only from here: set default, rename, then delete.
+  const trigger = page.getByRole("button", { name: "Everything" })
+  await trigger.focus()
+  await page.keyboard.press("Enter")
+  await arrowTo("Set Everything as default view")
+  await page.keyboard.press("Enter")
+  await expect(
+    page.getByRole("menuitem", { name: "Unset Everything as default view" })
+  ).toBeVisible()
+
+  await arrowTo("Rename view Everything")
+  await page.keyboard.press("Enter")
+  const renameDialog = page.getByRole("dialog", { name: "Rename view" })
+  await renameDialog.getByLabel("Name").fill("All films")
+  await page.keyboard.press("Enter")
+  await expect(renameDialog).toBeHidden()
+
+  await expect(page.getByRole("button", { name: "All films" })).toBeVisible()
+  await page.getByRole("button", { name: "All films" }).focus()
+  await page.keyboard.press("Enter")
+  await arrowTo("Delete view All films")
+  await page.keyboard.press("Enter")
+  await expect(
+    page.getByRole("menuitem", { name: "Delete view All films" })
+  ).toBeHidden()
+})

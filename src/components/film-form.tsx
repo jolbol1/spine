@@ -261,12 +261,12 @@ export function FilmForm({
             />
           </Field>
           <Field>
-            <FieldLabel>Format</FieldLabel>
+            <FieldLabel htmlFor="format">Format</FieldLabel>
             <Select
               value={values.format}
               onValueChange={(v) => set("format")(v as string)}
             >
-              <SelectTrigger>
+              <SelectTrigger id="format">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -279,12 +279,12 @@ export function FilmForm({
             </Select>
           </Field>
           <Field>
-            <FieldLabel>HDR</FieldLabel>
+            <FieldLabel htmlFor="hdr">HDR</FieldLabel>
             <Select
               value={values.hdr || "SDR"}
               onValueChange={(v) => set("hdr")(v as string)}
             >
-              <SelectTrigger>
+              <SelectTrigger id="hdr">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -306,12 +306,12 @@ export function FilmForm({
             />
           </Field>
           <Field>
-            <FieldLabel>Region</FieldLabel>
+            <FieldLabel htmlFor="region">Region</FieldLabel>
             <Select
               value={values.region || null}
               onValueChange={(v) => set("region")(v ?? "")}
             >
-              <SelectTrigger>
+              <SelectTrigger id="region">
                 <SelectValue placeholder="Select region" />
               </SelectTrigger>
               <SelectContent>
@@ -333,12 +333,12 @@ export function FilmForm({
             />
           </Field>
           <Field>
-            <FieldLabel>Package type</FieldLabel>
+            <FieldLabel htmlFor="packageType">Package type</FieldLabel>
             <Select
               value={values.packageType || null}
               onValueChange={(v) => set("packageType")(v ?? "")}
             >
-              <SelectTrigger>
+              <SelectTrigger id="packageType">
                 <SelectValue placeholder="Select type" />
               </SelectTrigger>
               <SelectContent>

@@ -20,6 +20,7 @@ import { importCexFn } from "@/server/cex"
 import type { TmdbTitleMatch } from "@/server/tmdb"
 import { searchWebBarcodeFn } from "@/server/websearch"
 import { scrapeWishlistUrlFn } from "@/server/wishlist"
+import { cn } from "@/lib/utils"
 
 function looksLikeUrl(value: string): boolean {
   return /^https?:\/\//i.test(value.trim()) || value.includes("blu-ray.com/")
@@ -70,6 +71,14 @@ async function importFromUrl(
     : { ok: false, error: result.error }
 }
 
+/** One autocomplete entry — a web-search TMDB match or a Blu-ray.com hit. */
+type ImportOption =
+  | { kind: "web"; match: TmdbTitleMatch }
+  | { kind: "bluray"; result: BlurayResult }
+
+const LISTBOX_ID = "bluray-import-listbox"
+const optionId = (index: number) => `bluray-import-option-${index}`
+
 /**
  * One box, two behaviours: type a title to autocomplete against
  * Blu-ray.com, or paste a product link from Blu-ray.com, CEX, or any
@@ -87,6 +96,7 @@ export function BlurayImportBox({
   const [results, setResults] = useState<BlurayResult[]>([])
   const [webMatches, setWebMatches] = useState<TmdbTitleMatch[]>([])
   const [open, setOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
   const [searching, setSearching] = useState(false)
   const [scannerOpen, setScannerOpen] = useState(autoOpenScanner)
   const [scannedCode, setScannedCode] = useState<string | null>(null)
@@ -107,6 +117,7 @@ export function BlurayImportBox({
       setValue("")
       setResults([])
       setWebMatches([])
+      setActiveIndex(-1)
       onImport(withScannedBarcode(result.values, scannedCode))
       toast.success(`Imported “${result.values.title}” from ${result.source}`)
     },
@@ -149,6 +160,7 @@ export function BlurayImportBox({
         case "bluray":
           setResults(result.found)
           setWebMatches([])
+          setActiveIndex(-1)
           setOpen(true)
           break
         case "cex":
@@ -158,6 +170,7 @@ export function BlurayImportBox({
         case "web":
           setWebMatches(result.matches)
           setResults([])
+          setActiveIndex(-1)
           setOpen(true)
           break
         case "miss":
@@ -183,16 +196,79 @@ export function BlurayImportBox({
     setValue(code)
     setResults([])
     setWebMatches([])
+    setActiveIndex(-1)
     scanLookup.mutate({ code, signal: controller.signal })
   }
 
   const isUrl = looksLikeUrl(value)
+
+  // Web matches first, then Blu-ray.com hits — one keyboard-walkable list.
+  const options: ImportOption[] = isUrl
+    ? []
+    : [
+        ...webMatches.map((match) => ({ kind: "web" as const, match })),
+        ...results.map((result) => ({ kind: "bluray" as const, result })),
+      ]
+  const listOpen = open && options.length > 0
+
+  useEffect(() => {
+    if (activeIndex < 0) return
+    document
+      .getElementById(optionId(activeIndex))
+      ?.scrollIntoView({ block: "nearest" })
+  }, [activeIndex])
+
+  const selectOption = (option: ImportOption) => {
+    if (option.kind === "web") {
+      setOpen(false)
+      setWebMatches([])
+      setActiveIndex(-1)
+      onImport({
+        ...emptyFilmValues,
+        title: option.match.title,
+        year: option.match.year?.toString() ?? "",
+        coverUrl: option.match.posterUrl ?? "",
+        barcode: scannedCode ?? "",
+        tmdbId: `${option.match.mediaType}/${option.match.tmdbId}`,
+      })
+    } else {
+      if (importUrl.isPending) return
+      importUrl.mutate(option.result.url)
+    }
+  }
+
+  const onInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (isUrl) return
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault()
+      if (options.length === 0) return
+      if (!open) {
+        setOpen(true)
+        return
+      }
+      setActiveIndex((prev) => {
+        const delta = e.key === "ArrowDown" ? 1 : -1
+        return (prev + delta + options.length) % options.length
+      })
+    } else if (e.key === "Enter") {
+      if (listOpen && activeIndex >= 0 && activeIndex < options.length) {
+        e.preventDefault()
+        selectOption(options[activeIndex])
+      }
+    } else if (e.key === "Escape") {
+      if (open) {
+        e.preventDefault()
+        setOpen(false)
+      }
+    }
+  }
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     const query = value.trim()
     if (isUrl || query.length < 2) {
       setResults([])
+      setActiveIndex(-1)
       setSearching(false)
       return
     }
@@ -208,6 +284,7 @@ export function BlurayImportBox({
         const found = await searchBlurayFn({ data: { query } })
         if (seq === requestSeq.current) {
           setResults(found)
+          setActiveIndex(-1)
           setOpen(true)
         }
       } catch {
@@ -248,10 +325,18 @@ export function BlurayImportBox({
           <Input
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            onFocus={() => results.length > 0 && setOpen(true)}
+            onFocus={() => options.length > 0 && setOpen(true)}
+            onKeyDown={onInputKeyDown}
             placeholder="Search Blu-ray.com, or paste a link (Blu-ray.com, CEX, HMV, Arrow…)"
             className="pl-8"
             aria-label="Search Blu-ray.com or paste a product link"
+            role="combobox"
+            aria-expanded={listOpen}
+            aria-controls={listOpen ? LISTBOX_ID : undefined}
+            aria-autocomplete="list"
+            aria-activedescendant={
+              listOpen && activeIndex >= 0 ? optionId(activeIndex) : undefined
+            }
           />
           {(searching || importUrl.isPending || scanLookup.isPending) && (
             <Loader2 className="absolute top-1/2 right-2.5 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
@@ -290,81 +375,97 @@ export function BlurayImportBox({
         onDetected={onScanned}
       />
 
-      {open && !isUrl && webMatches.length > 0 && (
-        <ul className="absolute z-30 mt-1 max-h-96 w-full overflow-y-auto rounded-md border bg-popover shadow-xl">
-          <li className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-            Best matches from a web search — check the year
-          </li>
-          {webMatches.map((match) => (
-            <li key={`${match.mediaType}-${match.tmdbId}`}>
-              <button
-                type="button"
-                className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-accent"
-                onClick={() => {
-                  setOpen(false)
-                  setWebMatches([])
-                  onImport({
-                    ...emptyFilmValues,
-                    title: match.title,
-                    year: match.year?.toString() ?? "",
-                    coverUrl: match.posterUrl ?? "",
-                    barcode: scannedCode ?? "",
-                    tmdbId: `${match.mediaType}/${match.tmdbId}`,
-                  })
-                }}
-              >
-                {match.posterUrl ? (
+      {listOpen && (
+        <ul
+          id={LISTBOX_ID}
+          role="listbox"
+          aria-label="Import matches"
+          className="absolute z-30 mt-1 max-h-96 w-full overflow-y-auto rounded-md border bg-popover shadow-xl"
+        >
+          {webMatches.length > 0 && (
+            <li
+              role="presentation"
+              className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase"
+            >
+              Best matches from a web search — check the year
+            </li>
+          )}
+          {options.map((option, index) => (
+            <li
+              key={
+                option.kind === "web"
+                  ? `${option.match.mediaType}-${option.match.tmdbId}`
+                  : option.result.url
+              }
+              id={optionId(index)}
+              role="option"
+              aria-selected={index === activeIndex}
+              aria-disabled={
+                (option.kind === "bluray" && importUrl.isPending) || undefined
+              }
+              className={cn(
+                "flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-accent",
+                index === activeIndex && "bg-accent",
+                option.kind === "bluray" && importUrl.isPending && "opacity-50"
+              )}
+              onClick={() => selectOption(option)}
+            >
+              {option.kind === "web" ? (
+                <>
+                  {option.match.posterUrl ? (
+                    <img
+                      src={option.match.posterUrl}
+                      alt=""
+                      loading="lazy"
+                      className="h-14 w-10 shrink-0 rounded-sm bg-secondary object-cover"
+                    />
+                  ) : (
+                    <span className="h-14 w-10 shrink-0 rounded-sm bg-secondary" />
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm">
+                      {option.match.title}
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      {[
+                        option.match.year,
+                        option.match.mediaType === "tv" ? "TV" : "Movie",
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </span>
+                </>
+              ) : (
+                <>
                   <img
-                    src={match.posterUrl}
+                    src={option.result.coverUrl.replace(
+                      "_front.jpg",
+                      "_small.jpg"
+                    )}
                     alt=""
                     loading="lazy"
                     className="h-14 w-10 shrink-0 rounded-sm bg-secondary object-cover"
                   />
-                ) : (
-                  <span className="h-14 w-10 shrink-0 rounded-sm bg-secondary" />
-                )}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm">{match.title}</span>
-                  <span className="block text-xs text-muted-foreground">
-                    {[match.year, match.mediaType === "tv" ? "TV" : "Movie"]
-                      .filter(Boolean)
-                      .join(" · ")}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm">
+                      {option.result.title}
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      {[option.result.year, option.result.releaseDate]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
                   </span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {open && !isUrl && results.length > 0 && (
-        <ul className="absolute z-30 mt-1 max-h-96 w-full overflow-y-auto rounded-md border bg-popover shadow-xl">
-          {results.map((result) => (
-            <li key={result.url}>
-              <button
-                type="button"
-                disabled={importUrl.isPending}
-                className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-accent disabled:opacity-50"
-                onClick={() => importUrl.mutate(result.url)}
-              >
-                <img
-                  src={result.coverUrl.replace("_front.jpg", "_small.jpg")}
-                  alt=""
-                  loading="lazy"
-                  className="h-14 w-10 shrink-0 rounded-sm bg-secondary object-cover"
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm">{result.title}</span>
-                  <span className="block text-xs text-muted-foreground">
-                    {[result.year, result.releaseDate]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </span>
-                </span>
-                {result.countryFlag && (
-                  <img src={result.countryFlag} alt="" className="h-3" />
-                )}
-              </button>
+                  {option.result.countryFlag && (
+                    <img
+                      src={option.result.countryFlag}
+                      alt=""
+                      className="h-3"
+                    />
+                  )}
+                </>
+              )}
             </li>
           ))}
         </ul>
