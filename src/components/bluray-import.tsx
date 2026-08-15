@@ -154,10 +154,14 @@ export function BlurayImportBox({
           setWebMatches([])
           setOpen(true)
           break
-        case "cex":
-          onImport(cexToValues(result.data))
+        case "cex": {
+          // Same step as the URL import path: the import doesn't know
+          // the barcode that was just scanned — keep it.
+          const values = cexToValues(result.data)
+          onImport({ ...values, barcode: values.barcode || code })
           toast.success(`Imported “${result.data.title}” from CEX`)
           break
+        }
         case "web":
           setWebMatches(result.matches)
           setResults([])
