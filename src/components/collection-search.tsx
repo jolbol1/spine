@@ -11,8 +11,14 @@ export function CollectionSearch({
 }) {
   const [value, setValue] = useState(query)
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastSent = useRef(query)
 
   useEffect(() => {
+    // The page echoes back the trimmed query we just sent — keep the
+    // input exactly as typed. Only adopt a real external change
+    // (URL navigation, a restored view).
+    if (query === lastSent.current) return
+    lastSent.current = query
     setValue(query)
     if (debounce.current) clearTimeout(debounce.current)
     debounce.current = null
@@ -28,7 +34,10 @@ export function CollectionSearch({
   const handleChange = (next: string) => {
     setValue(next)
     if (debounce.current) clearTimeout(debounce.current)
-    debounce.current = setTimeout(() => onQueryChange(next.trim()), 300)
+    debounce.current = setTimeout(() => {
+      lastSent.current = next.trim()
+      onQueryChange(next.trim())
+    }, 300)
   }
 
   return (
