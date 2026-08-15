@@ -35,8 +35,9 @@ export function CollectionSearch({
     setValue(next)
     if (debounce.current) clearTimeout(debounce.current)
     debounce.current = setTimeout(() => {
-      lastSent.current = next.trim()
-      onQueryChange(next.trim())
+      const trimmed = next.trim()
+      lastSent.current = trimmed
+      onQueryChange(trimmed)
     }, 300)
   }
 

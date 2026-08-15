@@ -1,5 +1,5 @@
 import { toSortTitle } from "@/lib/film-helpers"
-import type { CastMember, Film, TmdbDetails } from "@/db/schema"
+import type { CastMember, Film, TmdbDetails, WishlistItem } from "@/db/schema"
 
 /**
  * The film shape, written once for tests. Unit tests and end-to-end seeding
@@ -73,6 +73,28 @@ export function tmdbDetailsFixture(
     voteAverage: 8.5,
     collection: "Fixture Collection",
     certification: "15",
+    ...overrides,
+  }
+}
+
+/** A complete wishlist item, same contract as `filmFixture`. */
+export function wishlistItemFixture(
+  overrides: Partial<WishlistItem> = {}
+): WishlistItem {
+  const count = ++sequence
+  return {
+    id: `wishlist-${count}`,
+    userId: "u1",
+    title: `Fixture Wishlist Item ${count}`,
+    director: null,
+    year: null,
+    format: "Blu-ray",
+    url: null,
+    retailer: null,
+    price: null,
+    coverUrl: null,
+    notes: null,
+    createdAt: new Date("2026-01-01"),
     ...overrides,
   }
 }

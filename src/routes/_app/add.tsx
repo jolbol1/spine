@@ -11,7 +11,11 @@ import {
   valuesToInput,
 } from "@/components/film-form"
 import type { FilmFormValues } from "@/components/film-form"
-import { blurayToValues, cexToValues } from "@/lib/import-mappers"
+import {
+  blurayToValues,
+  cexToValues,
+  withScannedBarcode,
+} from "@/lib/import-mappers"
 import { importBlurayUrlFn } from "@/server/bluray"
 import { importCexFn } from "@/server/cex"
 import { createFilmFn } from "@/server/films"
@@ -52,10 +56,7 @@ function AddFilmPage() {
   })
 
   const applyImport = (values: FilmFormValues) => {
-    setImported({
-      ...values,
-      barcode: values.barcode || prefill.barcode || "",
-    })
+    setImported(withScannedBarcode(values, prefill.barcode))
     setFormKey((k) => k + 1)
   }
 
@@ -77,8 +78,6 @@ function AddFilmPage() {
     mutationFn: (cexId: string) => importCexFn({ data: { barcode: cexId } }),
     onSuccess: (result) => {
       if (result.success) {
-        // Same step as the Blu-ray.com auto-import: merge the barcode
-        // the scanner handed over in the URL.
         applyImport(cexToValues(result.data))
       } else {
         toast.error(result.error)
