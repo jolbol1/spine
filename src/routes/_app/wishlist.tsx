@@ -196,7 +196,10 @@ function WishlistPage() {
               item={item}
               onMove={() => move.mutate({ data: { id: item.id } })}
               onDelete={() => remove.mutate({ data: { id: item.id } })}
-              busy={move.isPending || remove.isPending}
+              busy={
+                (move.isPending && move.variables.data.id === item.id) ||
+                (remove.isPending && remove.variables.data.id === item.id)
+              }
             />
           ))}
         </div>
