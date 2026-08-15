@@ -26,6 +26,14 @@ export function BarcodeScanDialog({
   const streamRef = useRef<MediaStream | null>(null)
   const scanningRef = useRef(false)
   const cameraRequestRef = useRef(0)
+  // Read the callbacks through refs so a parent re-render with fresh
+  // props cannot change startCamera's identity and restart the camera.
+  const onOpenChangeRef = useRef(onOpenChange)
+  const onDetectedRef = useRef(onDetected)
+  useEffect(() => {
+    onOpenChangeRef.current = onOpenChange
+    onDetectedRef.current = onDetected
+  })
   const [cameraState, setCameraState] = useState<
     "starting" | "active" | "denied"
   >("starting")
@@ -85,8 +93,8 @@ export function BarcodeScanDialog({
         const hit = codes.find((c) => c.rawValue.length >= 8)
         if (hit) {
           stopCamera()
-          onOpenChange(false)
-          onDetected(hit.rawValue)
+          onOpenChangeRef.current(false)
+          onDetectedRef.current(hit.rawValue)
           return
         }
       } catch {
@@ -95,7 +103,7 @@ export function BarcodeScanDialog({
       setTimeout(tick, 180)
     }
     tick()
-  }, [onDetected, onOpenChange, stopCamera])
+  }, [stopCamera])
 
   useEffect(() => {
     if (open) {
