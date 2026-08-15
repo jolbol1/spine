@@ -37,6 +37,7 @@ import {
   assignFilms,
   matchesShelfRules,
   shelfFieldOptions,
+  upsertShelf,
 } from "@/lib/shelves"
 
 const NONE = "none"
@@ -174,9 +175,9 @@ export function ShelfBuilderDialog({
   // higher shelf claims first — precedence made tangible before saving.
   const preview = useMemo(() => {
     if (!open) return null
-    const layout = editing
-      ? shelves.map((s) => (s.id === editing.id ? draft : s))
-      : [...shelves, draft]
+    // A new shelf lands last, an edited one keeps its place — the same
+    // rule the save follows.
+    const layout = upsertShelf(shelves, draft)
     const draftIndex = layout.findIndex((s) => s.id === draft.id)
     const matching = films.filter((f) => matchesShelfRules(f, draft))
     const { byShelf } = assignFilms(films, layout)

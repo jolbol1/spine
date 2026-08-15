@@ -279,7 +279,10 @@ function ShelvesPage() {
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["settings"] }),
   })
-  const update = (next: Shelf[]) => saveShelves.mutate(next)
+  // An edit that changed nothing hands back the same shelves — no save.
+  const update = (next: Shelf[]) => {
+    if (next !== shelves) saveShelves.mutate(next)
+  }
 
   const [builderOpen, setBuilderOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -322,8 +325,10 @@ function ShelvesPage() {
     update(removeShelf(shelves, id))
     if (shelf) toast.success(`Shelf “${shelf.name}” deleted`)
   }
+  const nudgeShelf = (id: string, delta: -1 | 1) =>
+    update(moveShelf(shelves, id, delta))
   const dropShelf = (targetId: string) => {
-    if (!draggingId) return
+    if (!draggingId || draggingId === targetId) return
     update(moveShelfBefore(shelves, draggingId, targetId))
   }
   const markArranged = (ids: string[]) => {
@@ -362,7 +367,7 @@ function ShelvesPage() {
       )
     )
   }
-  const clearManualOrder = (shelfId: string) =>
+  const clearHandArranged = (shelfId: string) =>
     update(clearHandArrangedOrder(shelves, shelfId))
 
   // ---- Empty state ------------------------------------------------------
@@ -544,7 +549,7 @@ function ShelvesPage() {
                 <button
                   type="button"
                   className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-                  onClick={() => clearManualOrder(shelf.id)}
+                  onClick={() => clearHandArranged(shelf.id)}
                 >
                   hand-arranged — reset
                 </button>
@@ -555,7 +560,7 @@ function ShelvesPage() {
                   size="icon"
                   aria-label={`Move ${shelf.name} up`}
                   disabled={shelfIndex === 0}
-                  onClick={() => update(moveShelf(shelves, shelf.id, -1))}
+                  onClick={() => nudgeShelf(shelf.id, -1)}
                 >
                   <ArrowUp className="size-4" />
                 </Button>
@@ -564,7 +569,7 @@ function ShelvesPage() {
                   size="icon"
                   aria-label={`Move ${shelf.name} down`}
                   disabled={shelfIndex === shelves.length - 1}
-                  onClick={() => update(moveShelf(shelves, shelf.id, 1))}
+                  onClick={() => nudgeShelf(shelf.id, 1)}
                 >
                   <ArrowDown className="size-4" />
                 </Button>

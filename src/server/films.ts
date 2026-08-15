@@ -194,6 +194,9 @@ export const deleteFilmFn = createServerFn({ method: "POST" })
       await tx.delete(films).where(eq(films.id, data.id))
       // A film that leaves the collection leaves the shelves with it: no
       // pin, no exclusion and no slot in a hand-arranged order stays behind.
+      // The read and the write stay in this handler — a plain helper in
+      // another server module would carry the database into the browser
+      // bundle, which only a server function's handler is stripped from.
       const rows = await tx
         .select({ shelves: userSettings.shelves })
         .from(userSettings)

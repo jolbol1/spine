@@ -251,27 +251,44 @@ export function isNewSinceArranged(shelf: Shelf, film: Film): boolean {
 //
 // Each operation takes the current shelves and returns new shelves, and
 // changes nothing it is given: the caller keeps the previous layout, so a
-// save that fails can put it back. The rules that define a shelf are held
-// here too — above all, a film is pinned to one shelf only.
+// save that fails can put it back. An edit that changes nothing returns the
+// shelves it was given, so the caller can skip the save. The rules that
+// define a shelf are held here too — above all, a film is pinned to one
+// shelf only.
 // ---------------------------------------------------------------------------
 
 /** A shelf carries no key for an empty list. */
 const listOrNone = (ids: string[]): string[] | undefined =>
   ids.length > 0 ? ids : undefined
 
-const without = (ids: string[] | undefined, filmId: string) =>
-  ids && listOrNone(ids.filter((id) => id !== filmId))
+const without = (
+  ids: string[] | undefined,
+  filmId: string
+): string[] | undefined => ids && listOrNone(ids.filter((id) => id !== filmId))
+
+/** The list with the item at `index` moved one place by `delta`. */
+function swapped<T>(list: T[], index: number, delta: -1 | 1): T[] | null {
+  const target = index + delta
+  if (index < 0 || index >= list.length) return null
+  if (target < 0 || target >= list.length) return null
+  const next = [...list]
+  ;[next[index], next[target]] = [next[target], next[index]]
+  return next
+}
 
 /**
- * Pin a film to a shelf. The pin it held on any other shelf goes, and an
- * exclusion on this shelf goes with it — the collector asked for the film
- * here, and both would fight that.
+ * Pin a film to a shelf. The pin it held on another shelf goes, and an
+ * exclusion of it on this shelf goes: a pin is an instruction to keep the
+ * film here, and the other two would send it away.
  */
 export function pinFilmToShelf(
   shelves: Shelf[],
   filmId: string,
   shelfId: string
 ): Shelf[] {
+  // A pin to a shelf that is not there would only remove the pin the film
+  // has, so do nothing. The other operations change one shelf and thus
+  // stop by themselves.
   if (!shelves.some((s) => s.id === shelfId)) return shelves
   return shelves.map((shelf) =>
     shelf.id === shelfId
@@ -289,6 +306,7 @@ export function pinFilmToShelf(
 
 /** Drop the film's pin — it follows the rules again. */
 export function unpinFilm(shelves: Shelf[], filmId: string): Shelf[] {
+  if (!shelves.some((s) => s.pinned?.includes(filmId))) return shelves
   return shelves.map((shelf) => ({
     ...shelf,
     pinned: without(shelf.pinned, filmId),
@@ -304,6 +322,11 @@ export function excludeFilmFromShelf(
   filmId: string,
   shelfId: string
 ): Shelf[] {
+  const target = shelves.find((s) => s.id === shelfId)
+  if (!target) return shelves
+  if (target.excluded?.includes(filmId) && !target.pinned?.includes(filmId)) {
+    return shelves
+  }
   return shelves.map((shelf) =>
     shelf.id === shelfId
       ? {
@@ -329,11 +352,8 @@ export function moveFilmOnShelf(
   index: number,
   delta: -1 | 1
 ): Shelf[] {
-  const target = index + delta
-  if (index < 0 || index >= orderedIds.length) return shelves
-  if (target < 0 || target >= orderedIds.length) return shelves
-  const ids = [...orderedIds]
-  ;[ids[index], ids[target]] = [ids[target], ids[index]]
+  const ids = swapped(orderedIds, index, delta)
+  if (!ids || !shelves.some((s) => s.id === shelfId)) return shelves
   return shelves.map((shelf) =>
     shelf.id === shelfId ? { ...shelf, manualOrder: ids } : shelf
   )
@@ -344,16 +364,19 @@ export function clearHandArrangedOrder(
   shelves: Shelf[],
   shelfId: string
 ): Shelf[] {
+  if (!shelves.some((s) => s.id === shelfId && s.manualOrder)) return shelves
   return shelves.map((shelf) =>
     shelf.id === shelfId ? { ...shelf, manualOrder: undefined } : shelf
   )
 }
 
 /**
- * Add a shelf, or replace the one with the same id. What the collector did
- * by hand — pins, exclusions, the hand-arranged order and the arranged date
- * — belongs to the shelf, not to the form: editing the rules or the sort
- * never loses it.
+ * Add a shelf, or replace the one with the same id. Pins, exclusions, the
+ * hand-arranged order and the arranged date belong to the shelf and not to
+ * the form that edits it, so a change to the rules or the sort keeps them
+ * whatever the given shelf holds. Only `pinFilmToShelf`, `unpinFilm`,
+ * `excludeFilmFromShelf`, `moveFilmOnShelf`, `clearHandArrangedOrder`,
+ * `markShelvesArranged` and `forgetFilms` write those four fields.
  */
 export function upsertShelf(shelves: Shelf[], shelf: Shelf): Shelf[] {
   const current = shelves.find((s) => s.id === shelf.id)
@@ -369,24 +392,22 @@ export function upsertShelf(shelves: Shelf[], shelf: Shelf): Shelf[] {
 }
 
 export function removeShelf(shelves: Shelf[], shelfId: string): Shelf[] {
+  if (!shelves.some((s) => s.id === shelfId)) return shelves
   return shelves.filter((s) => s.id !== shelfId)
 }
 
-/** Move a shelf one place up (-1) or down (1); the ends hold. */
+/** Move a shelf one place up (-1) or down (1). A shelf at an end holds. */
 export function moveShelf(
   shelves: Shelf[],
   shelfId: string,
   delta: -1 | 1
 ): Shelf[] {
   const index = shelves.findIndex((s) => s.id === shelfId)
-  const target = index + delta
-  if (index === -1 || target < 0 || target >= shelves.length) return shelves
-  const next = [...shelves]
-  ;[next[index], next[target]] = [next[target], next[index]]
-  return next
+  if (index === -1) return shelves
+  return swapped(shelves, index, delta) ?? shelves
 }
 
-/** Put a shelf immediately above another — the drop of a drag. */
+/** Put a shelf immediately above another — where a drag is dropped. */
 export function moveShelfBefore(
   shelves: Shelf[],
   shelfId: string,
@@ -401,14 +422,15 @@ export function moveShelfBefore(
   return next
 }
 
-/** Record that the physical shelves were arranged — clears the NEW flags. */
+/** Record when the physical shelves were arranged — clears the NEW flags. */
 export function markShelvesArranged(
   shelves: Shelf[],
   shelfIds: string[],
-  at: string
+  arrangedAt: string
 ): Shelf[] {
+  if (!shelves.some((s) => shelfIds.includes(s.id))) return shelves
   return shelves.map((shelf) =>
-    shelfIds.includes(shelf.id) ? { ...shelf, arrangedAt: at } : shelf
+    shelfIds.includes(shelf.id) ? { ...shelf, arrangedAt } : shelf
   )
 }
 
@@ -418,26 +440,24 @@ export function markShelvesArranged(
  * same shelves when nothing referenced the films, so a caller can skip the
  * save.
  */
-export function forgetFilms(
-  shelves: Shelf[],
-  filmIds: Iterable<string>
-): Shelf[] {
+export function forgetFilms(shelves: Shelf[], filmIds: string[]): Shelf[] {
   const gone = new Set(filmIds)
   if (gone.size === 0) return shelves
+  /** The same list when it holds none of the films, so a shelf can tell. */
+  const keep = (ids: string[] | undefined): string[] | undefined => {
+    if (!ids) return ids
+    const left = ids.filter((id) => !gone.has(id))
+    return left.length === ids.length ? ids : listOrNone(left)
+  }
   const next = shelves.map((shelf) => {
-    const keep = (ids: string[] | undefined) =>
-      ids && listOrNone(ids.filter((id) => !gone.has(id)))
     const pinned = keep(shelf.pinned)
     const excluded = keep(shelf.excluded)
     const manualOrder = keep(shelf.manualOrder)
-    if (
-      (pinned?.length ?? 0) === (shelf.pinned?.length ?? 0) &&
-      (excluded?.length ?? 0) === (shelf.excluded?.length ?? 0) &&
-      (manualOrder?.length ?? 0) === (shelf.manualOrder?.length ?? 0)
-    ) {
-      return shelf
-    }
-    return { ...shelf, pinned, excluded, manualOrder }
+    return pinned === shelf.pinned &&
+      excluded === shelf.excluded &&
+      manualOrder === shelf.manualOrder
+      ? shelf
+      : { ...shelf, pinned, excluded, manualOrder }
   })
   return next.some((shelf, i) => shelf !== shelves[i]) ? next : shelves
 }
