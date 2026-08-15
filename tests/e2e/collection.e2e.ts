@@ -133,8 +133,17 @@ test("saved views are manageable entirely by keyboard", async ({ page }) => {
   await addFilm(page, { title: "Keyboard Film" })
   await page.goto("/")
 
+  // A click straight after goto can land before hydration — retry until
+  // the menu actually opens.
+  const openViewsMenu = async (name: string) => {
+    await expect(async () => {
+      await page.getByRole("button", { name }).click()
+      await expect(page.getByRole("menu")).toBeVisible({ timeout: 1_000 })
+    }).toPass()
+  }
+
   // Seed one saved view (the save dialog is already keyboard-friendly).
-  await page.getByRole("button", { name: "Views" }).click()
+  await openViewsMenu("Views")
   await page.getByRole("menuitem", { name: "Save current view…" }).click()
   const saveDialog = page.getByRole("dialog", { name: "Save current view" })
   await saveDialog.getByLabel("Name").fill("Everything")

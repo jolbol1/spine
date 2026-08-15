@@ -727,20 +727,19 @@ function CollectionPage() {
     saveViews.mutate(savedViews.filter((v) => v.name !== name))
 
   // Rename dialog: which view it renames, and the name being typed.
-  const [renameFrom, setRenameFrom] = useState<string | null>(null)
-  const [renameTo, setRenameTo] = useState("")
+  const [rename, setRename] = useState<{ from: string; to: string } | null>(
+    null
+  )
 
-  const openRename = (name: string) => {
-    setRenameFrom(name)
-    setRenameTo(name)
-  }
+  const openRename = (name: string) => setRename({ from: name, to: name })
 
   const renameView = () => {
-    const from = renameFrom
-    const to = renameTo.trim()
-    if (!from || !to) return
+    if (!rename) return
+    const { from } = rename
+    const to = rename.to.trim()
+    if (!to) return
     if (to === from) {
-      setRenameFrom(null)
+      setRename(null)
       return
     }
     const next = savedViews
@@ -749,7 +748,7 @@ function CollectionPage() {
       .map((v) => (v.name === from ? { ...v, name: to } : v))
     saveViews.mutate(next, {
       onSuccess: () => {
-        setRenameFrom(null)
+        setRename(null)
         toast.success(`View “${from}” renamed to “${to}”`)
       },
     })
@@ -1076,7 +1075,7 @@ function CollectionPage() {
                         : `Set ${saved.name} as default view`
                     }
                     title={saved.isDefault ? "Default view" : "Make default"}
-                    className="shrink-0 text-muted-foreground"
+                    className="shrink-0 px-1.5 text-muted-foreground"
                     onClick={() => toggleDefaultView(saved.name)}
                   >
                     <Star
@@ -1089,16 +1088,17 @@ function CollectionPage() {
                   <DropdownMenuItem
                     aria-label={`Rename view ${saved.name}`}
                     title="Rename view"
-                    className="shrink-0 text-muted-foreground"
+                    className="shrink-0 px-1.5 text-muted-foreground"
                     onClick={() => openRename(saved.name)}
                   >
                     <Pencil className="size-3.5" />
                   </DropdownMenuItem>
                   <DropdownMenuItem
+                    variant="destructive"
                     closeOnClick={false}
                     aria-label={`Delete view ${saved.name}`}
                     title="Delete view"
-                    className="shrink-0 text-muted-foreground focus:text-destructive"
+                    className="shrink-0 px-1.5 text-muted-foreground"
                     onClick={() => deleteView(saved.name)}
                   >
                     <Trash2 className="size-3.5" />
@@ -1180,9 +1180,9 @@ function CollectionPage() {
 
       {/* Rename-view dialog */}
       <Dialog
-        open={renameFrom != null}
+        open={rename != null}
         onOpenChange={(open) => {
-          if (!open) setRenameFrom(null)
+          if (!open) setRename(null)
         }}
       >
         <DialogContent className="sm:max-w-md">
@@ -1201,8 +1201,12 @@ function CollectionPage() {
               <Input
                 id="rename-view-name"
                 autoFocus
-                value={renameTo}
-                onChange={(e) => setRenameTo(e.target.value)}
+                value={rename?.to ?? ""}
+                onChange={(e) =>
+                  setRename((prev) =>
+                    prev ? { ...prev, to: e.target.value } : prev
+                  )
+                }
               />
             </Field>
             <p className="text-xs text-muted-foreground">
@@ -1212,13 +1216,13 @@ function CollectionPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setRenameFrom(null)}
+                onClick={() => setRename(null)}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                disabled={!renameTo.trim() || saveViews.isPending}
+                disabled={!rename?.to.trim() || saveViews.isPending}
               >
                 {saveViews.isPending && (
                   <Loader2 className="size-4 animate-spin" />

@@ -517,6 +517,7 @@ export function CoverSearchDialog({
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search Blu-ray.com by title or barcode"
             placeholder="Title or barcode…"
             onKeyDown={(e) => {
               if (e.key === "Enter") {
