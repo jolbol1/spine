@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { eq, isNull } from "drizzle-orm"
 import { z } from "zod"
 import { films, withUser } from "@/db"
-import { toRtScoreUpdate } from "@/lib/rt-score-update"
+import { mergeEnrichment } from "@/lib/enrichment"
 import { authMiddleware } from "@/server/middleware"
 import { fetchPageWithFallback } from "@/server/scrape"
 
@@ -191,8 +191,7 @@ export const syncRottenTomatoesFn = createServerFn({ method: "POST" })
         tx
           .update(films)
           .set({
-            rtSyncedAt: new Date(),
-            ...toRtScoreUpdate(result),
+            ...mergeEnrichment(film, { rt: result }),
             updatedAt: new Date(),
           })
           .where(eq(films.id, film.id))
@@ -239,8 +238,7 @@ export const refreshRtScoresFn = createServerFn({ method: "POST" })
       tx
         .update(films)
         .set({
-          rtSyncedAt: new Date(),
-          ...toRtScoreUpdate(result),
+          ...mergeEnrichment(film, { rt: result }),
           updatedAt: new Date(),
         })
         .where(eq(films.id, film.id))
