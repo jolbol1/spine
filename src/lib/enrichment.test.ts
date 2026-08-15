@@ -98,7 +98,7 @@ describe("review scores", () => {
   const merge = (
     film: Parameters<typeof mergeEnrichment>[0],
     sources: EnrichmentSources
-  ) => mergeEnrichment(film, sources, { now: NOW })
+  ) => mergeEnrichment(film, sources, NOW)
 
   it("writes the scores a match returned", () => {
     const patch = merge(filmFixture(), {
@@ -190,7 +190,7 @@ describe("metadata the source owns", () => {
 describe("the spine lookup", () => {
   it("fills a blank spine number", () => {
     const patch = mergeEnrichment(filmFixture({ spineNumber: null }), {
-      spineNumber: 44,
+      criterionSpine: 44,
     })
 
     expect(patch.spineNumber).toBe(44)
@@ -198,7 +198,7 @@ describe("the spine lookup", () => {
 
   it("leaves a spine number the user set alone", () => {
     const patch = mergeEnrichment(filmFixture({ spineNumber: 141 }), {
-      spineNumber: 44,
+      criterionSpine: 44,
     })
 
     expect(patch).not.toHaveProperty("spineNumber")
@@ -207,7 +207,7 @@ describe("the spine lookup", () => {
   it("prefers a spine number the disc source carried", () => {
     const patch = mergeEnrichment(filmFixture({ spineNumber: null }), {
       disc: { spineNumber: 141 },
-      spineNumber: 44,
+      criterionSpine: 44,
     })
 
     expect(patch.spineNumber).toBe(141)
@@ -289,7 +289,7 @@ describe("nothing to write", () => {
     const patch = mergeEnrichment(filmFixture({ director: null }), {
       disc: null,
       tmdb: null,
-      spineNumber: null,
+      criterionSpine: null,
     })
 
     expect(patch).toEqual({})

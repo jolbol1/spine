@@ -1,21 +1,24 @@
 import type { CastMember, Film, TmdbDetails } from "@/db/schema"
 
 /**
- * What fetched metadata does to a film. Every write path — adding a film,
- * syncing cast, syncing details, rematching an identifier, moving a wishlist
- * item into the collection — merges here, so the rules are written once:
+ * What fetched metadata does to a film. The rules are written once here:
  *
  * - A blank column is filled from whichever source knows it.
  * - A column the user set is never overwritten.
  * - The disc source describes the copy on the shelf, so it wins over the
  *   metadata source wherever both know a column.
  * - A lookup that ran is recorded as attempted, matched or not, so a later
- *   sweep can tell "never tried" from "tried and found nothing".
+ *   sweep can tell "never tried" from "tried and found nothing". Only the
+ *   review scores have a column for this, so only they record it.
  * - Columns only a source writes — the TMDB match, the review scores — are
  *   replaced by what that source last returned.
  *
  * Fetching stays outside: the merge takes what the sources returned and
  * returns the columns to write, so it needs no network and no database.
+ *
+ * The review-score sync and refresh merge here today. The remaining write
+ * paths — adding a film, syncing cast, syncing details, rematching an
+ * identifier, moving a wishlist item into the collection — follow.
  */
 
 /**
@@ -44,11 +47,18 @@ const FILLABLE_FIELDS = [
 
 type FillableField = (typeof FILLABLE_FIELDS)[number]
 
-/** The film values a merge reads. */
-export type EnrichableFilm = Partial<Pick<Film, FillableField>>
+/** Some of the columns a source may fill. */
+type FillableColumns = Partial<Pick<Film, FillableField>>
+
+/**
+ * What the merge reads off the film. Every fillable column is required: a
+ * query that selects only some of them makes the columns it left out look
+ * blank, and the merge would then overwrite a value the user set.
+ */
+export type EnrichableFilm = Pick<Film, FillableField>
 
 /** What the disc source (Blu-ray.com, CEX) knows about the physical copy. */
-export type DiscEnrichment = Partial<Pick<Film, FillableField>>
+export type DiscEnrichment = FillableColumns
 
 /** What the metadata source (TMDB) returned for one film. */
 export interface TmdbEnrichment {
@@ -78,7 +88,7 @@ export interface EnrichmentSources {
   tmdb?: TmdbEnrichment | null
   rt?: RtEnrichment | null
   /** What the Criterion spine lookup returned. */
-  spineNumber?: number | null
+  criterionSpine?: number | null
 }
 
 /** The columns an enrichment run writes back to the film. */
@@ -97,17 +107,16 @@ export type FilmEnrichmentPatch = Partial<
   >
 >
 
-export interface MergeOptions {
-  /** The clock, injected so a merge is reproducible in tests. */
-  now?: Date
-}
-
 /** A stored value counts as blank when nothing meaningful is in it. */
 function isBlank(value: unknown): boolean {
   return value == null || (typeof value === "string" && value.trim() === "")
 }
 
-/** Write one fillable column, keeping its own column type. */
+/**
+ * Write one fillable column. The type parameter is what lets the column be
+ * written through a name the loop holds; it does not check the value against
+ * that one column, so pass a value the offer itself carried.
+ */
 function fill<TField extends FillableField>(
   patch: FilmEnrichmentPatch,
   field: TField,
@@ -117,7 +126,9 @@ function fill<TField extends FillableField>(
 }
 
 /** The metadata source, expressed as the columns it can fill. */
-function metadataFill(tmdb: TmdbEnrichment | null | undefined): DiscEnrichment {
+function metadataFill(
+  tmdb: TmdbEnrichment | null | undefined
+): FillableColumns {
   if (!tmdb) return {}
   return {
     director: tmdb.directors.join(", ") || null,
@@ -128,20 +139,18 @@ function metadataFill(tmdb: TmdbEnrichment | null | undefined): DiscEnrichment {
 /**
  * Decide what fetched metadata does to a film: given the film and what the
  * sources returned, produce the columns to write. No fetching happens here.
- *
- * The disc source describes the copy on the shelf, so it wins over the
- * metadata source wherever both know a field.
+ * `now` is a parameter so a merge is reproducible in tests.
  */
 export function mergeEnrichment(
   film: EnrichableFilm,
   sources: EnrichmentSources,
-  options: MergeOptions = {}
+  now: Date = new Date()
 ): FilmEnrichmentPatch {
   const patch: FilmEnrichmentPatch = {}
   const offers = [
     sources.disc ?? {},
     metadataFill(sources.tmdb),
-    { spineNumber: sources.spineNumber },
+    { spineNumber: sources.criterionSpine },
   ]
 
   for (const field of FILLABLE_FIELDS) {
@@ -166,7 +175,7 @@ export function mergeEnrichment(
     patch.rtUrl = sources.rt?.url ?? null
     patch.rtCriticsScore = sources.rt?.criticsScore ?? null
     patch.rtAudienceScore = sources.rt?.audienceScore ?? null
-    patch.rtSyncedAt = options.now ?? new Date()
+    patch.rtSyncedAt = now
   }
 
   return patch
