@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
+import { getRequest } from "@tanstack/react-start/server"
 import { asc } from "drizzle-orm"
 import { z } from "zod"
 import { films, withUser } from "@/db"
@@ -19,7 +20,9 @@ const MAX_IMAGE_BASE64 = 8 * 1024 * 1024
 /**
  * Read the disc spines in a shelf photo and say which are already in the
  * collection, which are catalogued in another format, and which are
- * missing. One photo per call; clients merge several.
+ * missing. One photo per call; clients merge several. Spines come back in
+ * reading order — left to right, or top to bottom for a stack — which the
+ * shelf order check relies on.
  */
 export const scanShelfPhotoFn = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -27,6 +30,8 @@ export const scanShelfPhotoFn = createServerFn({ method: "POST" })
     z.object({
       image: z.string().min(100).max(MAX_IMAGE_BASE64),
       mediaType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+      /** How the discs sit, so the reading runs in the shelf's direction. */
+      arrangement: z.enum(["upright", "stacked"]).optional(),
     })
   )
   .handler(async ({ context, data }) => {
@@ -57,7 +62,8 @@ export const scanShelfPhotoFn = createServerFn({ method: "POST" })
       const reading = await readShelfPhoto(
         data.image,
         data.mediaType,
-        collection
+        collection,
+        { arrangement: data.arrangement, signal: getRequest().signal }
       )
       const spines = resolveShelfSpines(reading, collection)
       log.info("read shelf photo", {
@@ -66,6 +72,9 @@ export const scanShelfPhotoFn = createServerFn({ method: "POST" })
       })
       return { ok: true as const, spines }
     } catch (err) {
+      if (getRequest().signal.aborted) {
+        return { ok: false as const, error: "Cancelled." }
+      }
       if (err instanceof ShelfReadError) {
         log.warn("shelf photo not read", { error: err.message })
         return { ok: false as const, error: err.message }

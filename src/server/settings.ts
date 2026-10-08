@@ -85,6 +85,7 @@ const shelfSchema = z.object({
   excluded: z.array(z.string().max(60)).max(2_000).optional(),
   manualOrder: z.array(z.string().max(60)).max(2_000).optional(),
   arrangedAt: z.iso.datetime().optional(),
+  orientation: z.enum(["upright", "stacked"]).optional(),
 })
 
 /** Replace the user's shelves (client sends the full ordered list). */

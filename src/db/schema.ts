@@ -32,6 +32,8 @@ export interface SavedView {
   isDefault?: boolean
 }
 
+export type ShelfOrientation = "upright" | "stacked"
+
 /** A film field a shelf rule can test. */
 export type ShelfRuleField =
   | "format"
@@ -85,6 +87,12 @@ export interface Shelf {
   manualOrder?: string[]
   /** When the physical shelf was last arranged — newer films get flagged. */
   arrangedAt?: string
+  /**
+   * How the discs sit: standing side by side, read left to right (the
+   * default), or stacked flat in a pile, read top to bottom. The shelf's
+   * order runs in that reading direction.
+   */
+  orientation?: ShelfOrientation
 }
 
 /** Title-level TMDB metadata, as stored in films.tmdb_details. */

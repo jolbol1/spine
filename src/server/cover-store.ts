@@ -1,4 +1,4 @@
-import { count, eq } from "drizzle-orm"
+import { and, count, eq, lt, sql } from "drizzle-orm"
 import { filmCovers, films } from "@/db"
 import { customCoverId } from "@/lib/covers"
 import type { Tx } from "@/db"
@@ -25,4 +25,24 @@ export async function releaseCustomCover(
     .where(eq(films.coverUrl, url))
   if (uses > 0) return
   await tx.delete(filmCovers).where(eq(filmCovers.id, id))
+}
+
+/** How long an uploaded cover may sit unused before it's swept. */
+const ORPHAN_GRACE = "1 day"
+
+/**
+ * Delete the user's photographed covers that no film points at and that
+ * are older than a day — uploads from a form that was then abandoned. Runs
+ * on each upload, so it needs no scheduler; the grace period keeps a cover
+ * whose form is still open.
+ */
+export async function sweepOrphanCovers(tx: Tx): Promise<void> {
+  await tx
+    .delete(filmCovers)
+    .where(
+      and(
+        lt(filmCovers.createdAt, sql`now() - ${ORPHAN_GRACE}::interval`),
+        sql`not exists (select 1 from ${films} where ${films.coverUrl} = '/api/covers/' || ${filmCovers.id}::text)`
+      )
+    )
 }

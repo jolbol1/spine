@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 import { filmCovers, withUser } from "@/db"
 import { coverPath, sniffImageType } from "@/lib/covers"
+import { sweepOrphanCovers } from "@/server/cover-store"
 import { serverLogger } from "@/server/log"
 import { authMiddleware } from "@/server/middleware"
 
@@ -37,12 +38,13 @@ export const uploadCoverFn = createServerFn({ method: "POST" })
     if (bytes.length > MAX_COVER_BYTES) {
       return { ok: false as const, error: "That cover image is too large." }
     }
-    const [row] = await withUser(context.userId, (tx) =>
-      tx
+    const [row] = await withUser(context.userId, async (tx) => {
+      await sweepOrphanCovers(tx)
+      return tx
         .insert(filmCovers)
         .values({ userId: context.userId, contentType, data: bytes })
         .returning({ id: filmCovers.id })
-    )
+    })
     log.info("stored cover", { id: row.id, bytes: bytes.length, contentType })
     return { ok: true as const, url: coverPath(row.id) }
   })

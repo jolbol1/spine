@@ -20,13 +20,28 @@ export type ShelfImageType = "image/jpeg" | "image/png" | "image/webp"
 /** A failure worth showing the user as-is. */
 export class ShelfReadError extends Error {}
 
+/** How the photographed discs sit, when the user has said. */
+export type ShelfArrangement = "upright" | "stacked"
+
+const READING_REQUEST: Record<ShelfArrangement | "unknown", string> = {
+  upright:
+    "Read the spines on this shelf. The discs stand upright side by side: report them left to right.",
+  stacked:
+    "Read the spines on this shelf. The discs are stacked flat in a pile: report them top to bottom.",
+  unknown: "Read the spines on this shelf.",
+}
+
 export async function readShelfPhoto(
   image: string,
   mediaType: ShelfImageType,
   collection: readonly Pick<
     Film,
     "title" | "year" | "format" | "label" | "spineNumber"
-  >[]
+  >[],
+  {
+    arrangement,
+    signal,
+  }: { arrangement?: ShelfArrangement; signal?: AbortSignal } = {}
 ): Promise<ShelfReading> {
   const client = new Anthropic({
     apiKey: env.ANTHROPIC_API_KEY,
@@ -36,41 +51,46 @@ export async function readShelfPhoto(
 
   let response: Anthropic.Beta.BetaMessage
   try {
-    response = await client.beta.messages.create({
-      model: "claude-opus-5-5",
-      max_tokens: 16000,
-      // A declined request is re-run on Anthropic's recommended fallback
-      // model rather than coming back as a refusal.
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      output_config: {
-        effort: "medium",
-        format: { type: "json_schema", schema: SHELF_READING_JSON_SCHEMA },
+    response = await client.beta.messages.create(
+      {
+        model: "claude-opus-5-5",
+        max_tokens: 16000,
+        // A declined request is re-run on Anthropic's recommended fallback
+        // model rather than coming back as a refusal.
+        betas: ["server-side-fallback-2026-07-01"],
+        fallbacks: "default",
+        output_config: {
+          effort: "medium",
+          format: { type: "json_schema", schema: SHELF_READING_JSON_SCHEMA },
+        },
+        system: [
+          { type: "text", text: SHELF_READING_INSTRUCTIONS },
+          // The collection is the same for every photo in a session, so it's
+          // cached ahead of the image.
+          {
+            type: "text",
+            text: collectionListText(collection),
+            cache_control: { type: "ephemeral" },
+          },
+        ],
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image",
+                source: { type: "base64", media_type: mediaType, data: image },
+              },
+              { type: "text", text: READING_REQUEST[arrangement ?? "unknown"] },
+            ],
+          },
+        ],
       },
-      system: [
-        { type: "text", text: SHELF_READING_INSTRUCTIONS },
-        // The collection is the same for every photo in a session, so it's
-        // cached ahead of the image.
-        {
-          type: "text",
-          text: collectionListText(collection),
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: { type: "base64", media_type: mediaType, data: image },
-            },
-            { type: "text", text: "Read the spines on this shelf." },
-          ],
-        },
-      ],
-    })
+      // Stop paying for a reading the client has given up on.
+      { signal }
+    )
   } catch (err) {
+    if (err instanceof Anthropic.APIUserAbortError) throw err
     if (err instanceof Anthropic.AuthenticationError) {
       throw new ShelfReadError(
         "The Anthropic API key was rejected — check ANTHROPIC_API_KEY."
