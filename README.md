@@ -26,6 +26,7 @@
 - 👤 Person pages — click any actor or director anywhere to see everything of theirs in your collection, directing and acting credits on one page
 - 🏛️ Auto Criterion spine numbers — matched against criterion.com's release list on add and via a Settings backfill
 - 🔐 better-auth email/password + real Postgres row-level security
+- 📱 Native iOS app on the same server and accounts — Liquid Glass tabs, camera barcode scanning
 
 ## See it in action
 
@@ -66,9 +67,17 @@ Filter by watched state, format, and runtime, then let Spine choose tonight's fi
   </tr>
 </table>
 
+## iOS app
+
+A native SwiftUI app for iOS 26 lives in [`ios/`](ios/README.md). It has the
+same features and talks to the same server. Sign in with the account you use
+on the web, and your collection, wishlist, shelves, and saved views follow
+you. Open `ios/Spine.xcodeproj` in Xcode and run it, then enter your server's
+address.
+
 ## Stack
 
-TanStack Start · TanStack Query · shadcn/ui (Base UI, base-lyra) · Tailwind v4 · Drizzle ORM · Postgres · better-auth · Bun
+TanStack Start · TanStack Query · shadcn/ui (Base UI, base-lyra) · Tailwind v4 · Drizzle ORM · Postgres · better-auth · Bun · SwiftUI (iOS)
 
 ## Quick start with Docker
 
