@@ -20,9 +20,11 @@ final class AuthStore {
   /// Shown on the sign-in screen after the server rejected a stored token.
   private(set) var notice: String?
 
-  /// The last server signed in to — prefilled on the sign-in screen.
+  /// The last server signed in to — prefilled on the sign-in screen. Before
+  /// the first sign-in, the build's default server, if it has one.
   var lastServer: String {
-    UserDefaults.standard.string(forKey: Keys.server) ?? ""
+    UserDefaults.standard.string(forKey: Keys.server)
+      ?? (Bundle.main.object(forInfoDictionaryKey: "SpineDefaultServer") as? String) ?? ""
   }
 
   private enum Keys {
@@ -106,6 +108,8 @@ final class AuthStore {
       UserDefaults.standard.set(data, forKey: Keys.user)
     }
     notice = nil
+    // Photographed covers are stored as paths on this server.
+    CoverURL.setServer(client.server)
     library = Library(api: client, userID: user.id)
     phase = .signedIn(user)
   }
@@ -115,6 +119,7 @@ final class AuthStore {
     UserDefaults.standard.removeObject(forKey: Keys.user)
     library?.discardCache()
     library = nil
+    CoverURL.setServer(nil)
     self.notice = notice
     phase = .signedOut
   }

@@ -41,6 +41,7 @@ private struct FilmDetailContent: View {
   @Environment(\.horizontalSizeClass) private var sizeClass
 
   @State private var editing = false
+  @State private var scanningCover = false
   @State private var confirmingDelete = false
   @State private var deleting = false
   @State private var refreshingRT = false
@@ -98,6 +99,7 @@ private struct FilmDetailContent: View {
     .sheet(isPresented: $editing) {
       FilmEditSheet(film: film)
     }
+    .filmCoverScanner(isPresented: $scanningCover, format: film.format, onCover: saveCover)
     .animation(.default, value: film.tmdbId == nil)
   }
 
@@ -124,6 +126,8 @@ private struct FilmDetailContent: View {
           Label("Share", systemImage: "square.and.arrow.up")
         }
       }
+      Button("Scan new cover", systemImage: "doc.viewfinder") { scanningCover = true }
+        .disabled(deleting)
       Button(role: .destructive) {
         confirmingDelete = true
       } label: {
@@ -150,6 +154,15 @@ private struct FilmDetailContent: View {
     } catch {
       toasts.error(error)
     }
+  }
+
+  /// A scanned cover replaces the current one straight away, the rest of
+  /// the film as it is.
+  private func saveCover(_ url: String) async throws {
+    var values = FilmFormValues(film: library.film(id: film.id) ?? film)
+    values.coverUrl = url
+    try await library.updateFilm(id: film.id, values.input)
+    toasts.success("Cover updated")
   }
 
   private func setWatched(_ watched: Bool?) {

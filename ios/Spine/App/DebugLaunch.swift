@@ -9,7 +9,8 @@
   ///   -SpineServer http://localhost:3000 -SpineEmail a@b.c -SpinePassword …
   ///       sign in when no session is stored
   ///   -SpineTab collection|shelves|wishlist|stats|oracle
-  ///   -SpineOpen film:<id> | person:<name>     push onto the starting tab
+  ///   -SpineOpen film:<id> | person:<name> | shelf-check[:<shelf id>]
+  ///                                           push onto the starting tab
   ///   -SpineSheet add|scan|settings            present a sheet
   enum DebugLaunch {
     private static var defaults: UserDefaults { .standard }
@@ -37,10 +38,13 @@
       }
       if let open = defaults.string(forKey: "SpineOpen") {
         let parts = open.split(separator: ":", maxSplits: 1).map(String.init)
-        if parts.count == 2 {
+        if open == "shelf-check" {
+          router.open(.shelfCheck(shelfID: nil))
+        } else if parts.count == 2 {
           switch parts[0] {
           case "film": router.open(.film(id: parts[1]))
           case "person": router.open(.person(name: parts[1]))
+          case "shelf-check": router.open(.shelfCheck(shelfID: parts[1]))
           default: break
           }
         }

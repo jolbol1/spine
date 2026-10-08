@@ -44,7 +44,7 @@ struct WishlistDraftSheet: View {
   }
   private var canSave: Bool { !title.isEmpty && yearIsValid && !saving }
   private var coverPreview: URL? {
-    guard let url = URL(string: draft.coverUrl.draftTrimmed),
+    guard let url = CoverURL.resolve(draft.coverUrl),
       let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https"
     else { return nil }
     return url

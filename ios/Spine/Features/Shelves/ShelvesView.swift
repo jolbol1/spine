@@ -188,6 +188,11 @@ private struct ShelvesScreen: View {
     }
     if hasLoaded {
       ToolbarItem(placement: .topBarTrailing) {
+        Button("Check a shelf photo", systemImage: "text.viewfinder") {
+          router.open(.shelfCheck(shelfID: nil), in: .shelves)
+        }
+      }
+      ToolbarItem(placement: .topBarTrailing) {
         Button("New Shelf", systemImage: "plus") { builder = .new }
       }
     }

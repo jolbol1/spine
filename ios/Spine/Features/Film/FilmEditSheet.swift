@@ -6,6 +6,7 @@ struct FilmEditSheet: View {
 
   @Environment(Library.self) private var library
   @Environment(Toasts.self) private var toasts
+  @Environment(Router.self) private var router
   @Environment(\.dismiss) private var dismiss
   @State private var values: FilmFormValues
   @State private var saving = false
@@ -19,9 +20,17 @@ struct FilmEditSheet: View {
   var body: some View {
     NavigationStack {
       Form {
-        FilmFormSections(values: $values, focus: $focus)
+        FilmFormSections(
+          values: $values, focus: $focus,
+          // Other copies — never the film being edited.
+          duplicates: CollectionMatch.duplicates(
+            in: library.films, of: values.duplicateCandidate, excluding: film.id),
+          onOpenDuplicate: { other in
+            dismiss()
+            router.open(.film(id: other.id))
+          })
       }
-      .filmFormChrome(focus: $focus)
+      .filmFormChrome()
       .navigationTitle("Edit “\(film.title)”")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
@@ -30,7 +39,7 @@ struct FilmEditSheet: View {
         }
       }
       .safeAreaBar(edge: .bottom) {
-        FilmFormSubmitBar(label: "Save changes", pending: saving, action: save)
+        FilmFormSubmitBar(label: "Save changes", pending: saving, focus: $focus, action: save)
       }
     }
     // Unsaved edits aren't lost to a stray swipe; Cancel still discards.

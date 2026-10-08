@@ -67,6 +67,7 @@ struct ShelfSectionView: View {
   var onDelete: () -> Void
 
   @Environment(ShelvesStore.self) private var store
+  @Environment(Router.self) private var router
 
   private var overflow: [Film] { ShelfEngine.overflow(shelf, ordered) }
   private var newCount: Int { ordered.count { ShelfEngine.isNewSinceArranged(shelf, $0) } }
@@ -76,14 +77,22 @@ struct ShelfSectionView: View {
     VStack(alignment: .leading, spacing: 10) {
       header
         .padding(.horizontal, gutter)
-      ShelfCubby(
-        slots: ShelfSlot.build(shelf: shelf, ordered: ordered, ghosts: ghosts),
-        metrics: metrics,
-        emptyMessage: "Nothing matches this shelf yet."
-      ) { film, position in
-        ShelfCoverCell(
-          film: film, position: position, shelf: shelf, ordered: ordered,
-          shelves: shelves, metrics: metrics)
+      Group {
+        if shelf.isStacked {
+          ShelfPile(
+            slots: ShelfSlot.build(shelf: shelf, ordered: ordered, ghosts: ghosts),
+            shelf: shelf, ordered: ordered, shelves: shelves, metrics: metrics)
+        } else {
+          ShelfCubby(
+            slots: ShelfSlot.build(shelf: shelf, ordered: ordered, ghosts: ghosts),
+            metrics: metrics,
+            emptyMessage: "Nothing matches this shelf yet."
+          ) { film, position in
+            ShelfCoverCell(
+              film: film, position: position, shelf: shelf, ordered: ordered,
+              shelves: shelves, metrics: metrics)
+          }
+        }
       }
       .padding(.horizontal, gutter)
       if !overflow.isEmpty {
@@ -156,6 +165,13 @@ struct ShelfSectionView: View {
       Button("Edit Shelf", systemImage: "pencil", action: onEdit)
       Button("Arrange by Hand", systemImage: "hand.draw", action: onArrange)
         .disabled(ordered.count < 2)
+      Button {
+        router.open(.shelfCheck(shelfID: shelf.id), in: .shelves)
+      } label: {
+        Label("Check Order with a Photo", systemImage: "camera.viewfinder")
+        Text("Photograph it and see what to move")
+      }
+      .disabled(ordered.isEmpty)
       Button {
         store.markArranged([shelf.id])
       } label: {
@@ -246,7 +262,7 @@ struct ShelfCubby<Cover: View>: View {
 }
 
 /// The shelf board: a lit top edge over a darker front face.
-private struct ShelfLedge: View {
+struct ShelfLedge: View {
   var body: some View {
     VStack(spacing: 0) {
       Color(hex: 0x5A687C).frame(height: 1)
@@ -269,11 +285,12 @@ struct ShelfCoverCell: View {
   let shelves: [Shelf]
   let metrics: ShelfMetrics
 
-  @Environment(ShelvesStore.self) private var store
-
-  private var isNew: Bool { ShelfEngine.isNewSinceArranged(shelf, film) }
-  private var isPinnedHere: Bool { shelf.pinned?.contains(film.id) ?? false }
-  private var isOverCapacity: Bool { shelf.capacity.map { position > $0 } ?? false }
+  private var marks: ShelfFilmMarks {
+    ShelfFilmMarks(film: film, position: position, shelf: shelf, ordered: ordered)
+  }
+  private var isNew: Bool { marks.isNew }
+  private var isPinnedHere: Bool { marks.isPinnedHere }
+  private var isOverCapacity: Bool { marks.isOverCapacity }
 
   var body: some View {
     NavigationLink(value: Route.film(id: film.id)) {
@@ -314,49 +331,85 @@ struct ShelfCoverCell: View {
       .contentShape(.rect)
     }
     .buttonStyle(.plain)
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel(accessibilityText)
-    .accessibilityHint(newHint ?? "")
-    .accessibilityAddTraits(.isLink)
-    .contextMenu {
-      Section {
-        ShelfPinMenu(filmID: film.id, shelves: shelves.filter { $0.id != shelf.id })
-        if isPinnedHere {
-          Button("Unpin — Follow Rules Again", systemImage: "pin.slash") {
-            store.unpin(filmID: film.id)
-          }
-        } else {
-          Button("Remove from This Shelf", systemImage: "minus.circle") {
-            store.exclude(filmID: film.id, from: shelf.id)
-          }
-        }
-      } header: {
-        if let newHint { Text(newHint) }
-      }
-    } preview: {
-      ShelfCoverPreview(film: film)
-    }
+    .shelfFilmMenu(marks, shelves: shelves)
   }
+}
+
+/// What a film's markers on a shelf say — its slot, NEW since arranged,
+/// pinned here, past capacity — for covers and piled discs alike.
+struct ShelfFilmMarks {
+  let film: Film
+  let position: Int
+  let shelf: Shelf
+  let ordered: [Film]
+
+  var isNew: Bool { ShelfEngine.isNewSinceArranged(shelf, film) }
+  var isPinnedHere: Bool { shelf.pinned?.contains(film.id) ?? false }
+  var isOverCapacity: Bool { shelf.capacity.map { position > $0 } ?? false }
 
   /// "Added since this shelf was arranged — slot 4, between Alien and Dune".
-  private var newHint: String? {
+  var newHint: String? {
     guard isNew else { return nil }
     var hint = "Added since this shelf was arranged — slot \(position)"
     if ordered.count > 1 {
       let index = position - 1
-      let before = index > 0 ? ordered[index - 1].title : "the start"
-      let after = index < ordered.count - 1 ? ordered[index + 1].title : "the end"
+      let before = index > 0 ? ordered[index - 1].title : shelf.isStacked ? "the top" : "the start"
+      let after =
+        index < ordered.count - 1 ? ordered[index + 1].title : shelf.isStacked ? "the bottom" : "the end"
       hint += ", between \(before) and \(after)"
     }
     return hint
   }
 
-  private var accessibilityText: String {
+  var accessibilityText: String {
     var parts = [film.title, "slot \(position)"]
     if isOverCapacity { parts.append("past capacity") }
     if isPinnedHere { parts.append("pinned to this shelf") }
     if isNew { parts.append("new since arranged") }
     return parts.joined(separator: ", ")
+  }
+}
+
+extension View {
+  /// A shelved film's accessibility and long-press menu: pin elsewhere,
+  /// unpin, or remove from this shelf, with the lifted cover as preview.
+  func shelfFilmMenu(_ marks: ShelfFilmMarks, shelves: [Shelf]) -> some View {
+    modifier(ShelfFilmMenu(marks: marks, shelves: shelves))
+  }
+}
+
+private struct ShelfFilmMenu: ViewModifier {
+  let marks: ShelfFilmMarks
+  let shelves: [Shelf]
+
+  @Environment(ShelvesStore.self) private var store
+
+  func body(content: Content) -> some View {
+    let film = marks.film
+    let shelf = marks.shelf
+    content
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel(marks.accessibilityText)
+      .accessibilityHint(marks.newHint ?? "")
+      .accessibilityAddTraits(.isLink)
+      .contextMenu {
+        Section {
+          ShelfPinMenu(filmID: film.id, shelves: shelves.filter { $0.id != shelf.id })
+          if marks.isPinnedHere {
+            Button("Unpin — Follow Rules Again", systemImage: "pin.slash") {
+              store.unpin(filmID: film.id)
+            }
+          } else {
+            Button("Remove from This Shelf", systemImage: "minus.circle") {
+              store.exclude(filmID: film.id, from: shelf.id)
+            }
+          }
+        } header: {
+          if let hint = marks.newHint { Text(hint) }
+        }
+      } preview: {
+        ShelfCoverPreview(film: film)
+      }
   }
 }
 
@@ -453,7 +506,7 @@ private struct ShelfGhostCell: View {
   var body: some View {
     VStack(spacing: 0) {
       PosterFrame(
-        url: item.coverUrl.flatMap(URL.init(string:)), title: item.title, cornerRadius: 4,
+        url: item.coverURL, title: item.title, cornerRadius: 4,
         maxPixelSize: 360
       )
       .frame(width: metrics.coverWidth, height: metrics.coverHeight)

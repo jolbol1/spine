@@ -2,6 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- The server the sign-in screen starts with. Empty in the project; set
+	     SPINE_DEFAULT_SERVER when building for a known server, e.g.
+	     xcodebuild … SPINE_DEFAULT_SERVER=https://spine.example.com -->
+	<key>SpineDefaultServer</key>
+	<string>$(SPINE_DEFAULT_SERVER)</string>
 	<!-- Spine is self-hosted: the server may be plain HTTP on a LAN address
 	     or a home domain, so ATS can't insist on HTTPS for it. -->
 	<key>NSAppTransportSecurity</key>

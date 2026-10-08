@@ -222,6 +222,9 @@ struct CollectionView: View {
         Button("Scan barcode", systemImage: "barcode.viewfinder") {
           router.sheet = .addFilm(scan: true)
         }
+        Button("Check a shelf photo", systemImage: "text.viewfinder") {
+          router.open(.shelfCheck(shelfID: nil), in: .collection)
+        }
       }
     }
     AccountButton()

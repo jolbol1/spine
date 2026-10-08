@@ -16,24 +16,28 @@ struct FilmFormSections: View {
   /// An id on the first row, for `ScrollViewReader` to bring the form into
   /// sight after an import.
   var anchorID: String? = nil
+  /// Catalogued films that look like this disc, shown under the title.
+  var duplicates: [CollectionMatch.Match] = []
+  var onOpenDuplicate: (Film) -> Void = { _ in }
 
   @Environment(Library.self) private var library
   @Environment(Toasts.self) private var toasts
   @State private var coverSearchOpen = false
+  @State private var coverScanOpen = false
   @State private var spineLookupPending = false
 
   var body: some View {
     Section("Cover") {
       HStack(alignment: .center, spacing: 16) {
         PosterFrame(
-          url: URL(string: values.coverUrl.trimmingCharacters(in: .whitespaces)),
+          url: CoverURL.resolve(values.coverUrl),
           title: values.title.isEmpty ? "No cover" : values.title,
           cornerRadius: 6, maxPixelSize: 360
         )
         .frame(width: 84)
         .accessibilityLabel(values.coverUrl.isEmpty ? "No cover" : "Cover preview")
 
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
           Button {
             coverSearchOpen = true
           } label: {
@@ -41,10 +45,19 @@ struct FilmFormSections: View {
               .font(.subheadline.weight(.semibold))
           }
           .buttonStyle(.borderless)
-          Text("Picking a release sets the cover and fills a blank title and year.")
-            .font(.caption)
-            .foregroundStyle(.spineMutedForeground)
-            .fixedSize(horizontal: false, vertical: true)
+          Button {
+            coverScanOpen = true
+          } label: {
+            Label("Scan cover", systemImage: "doc.viewfinder")
+              .font(.subheadline.weight(.semibold))
+          }
+          .buttonStyle(.borderless)
+          Text(
+            "Picking a release sets the cover and fills a blank title and year. Scanning photographs your own copy’s front."
+          )
+          .font(.caption)
+          .foregroundStyle(.spineMutedForeground)
+          .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
       }
@@ -57,6 +70,9 @@ struct FilmFormSections: View {
           if values.title.isEmpty { values.title = FilmImport.cleanBlurayTitle(result.title) }
           if values.year.isEmpty { values.year = result.year.map(String.init) ?? "" }
         }
+      }
+      .filmCoverScanner(isPresented: $coverScanOpen, format: values.format) { url in
+        values.coverUrl = url
       }
 
       FilmFormTextRow(
@@ -79,6 +95,10 @@ struct FilmFormSections: View {
         focus: focus, field: .runtime)
     }
     .listRowBackground(Color.spineCard)
+
+    if !duplicates.isEmpty {
+      FilmDuplicateSection(matches: duplicates, onOpen: onOpenDuplicate)
+    }
 
     Section("Disc") {
       Picker("Format", selection: $values.format) {
@@ -276,28 +296,51 @@ private struct FilmFormTextRow: View {
 }
 
 /// The form's submit button, pinned under the content so it stays in reach
-/// above the keyboard.
+/// above the keyboard — with the keyboard's Done beside it while a field is
+/// focused. (A keyboard toolbar would float over this bar and swallow taps
+/// on it, so the bar carries Done instead; number pads have no return key.)
 struct FilmFormSubmitBar: View {
   let label: String
   let pending: Bool
+  var focus: FocusState<FilmFormFocus?>.Binding? = nil
   let action: () -> Void
 
   var body: some View {
-    Button(action: action) {
-      HStack(spacing: 8) {
-        if pending {
-          ProgressView().tint(.onAccent)
+    GlassEffectContainer(spacing: 10) {
+      HStack(spacing: 10) {
+        Button(action: action) {
+          HStack(spacing: 8) {
+            if pending {
+              ProgressView().tint(.onAccent)
+            }
+            Text(label)
+          }
+          .font(.headline)
+          .foregroundStyle(.onAccent)
+          .frame(maxWidth: .infinity)
+          .padding(.vertical, 6)
         }
-        Text(label)
+        .buttonStyle(.glassProminent)
+        .tint(.lbGreen)
+        .disabled(pending)
+
+        if let focus, focus.wrappedValue != nil {
+          Button {
+            focus.wrappedValue = nil
+          } label: {
+            Image(systemName: "keyboard.chevron.compact.down")
+              .font(.headline)
+              .frame(width: 26, height: 30)
+          }
+          .buttonStyle(.glass)
+          .buttonBorderShape(.circle)
+          .accessibilityLabel("Done")
+          .accessibilityHint("Hides the keyboard")
+          .transition(.scale.combined(with: .opacity))
+        }
       }
-      .font(.headline)
-      .foregroundStyle(.onAccent)
-      .frame(maxWidth: .infinity)
-      .padding(.vertical, 6)
+      .animation(.snappy(duration: 0.25), value: focus?.wrappedValue != nil)
     }
-    .buttonStyle(.glassProminent)
-    .tint(.lbGreen)
-    .disabled(pending)
     .frame(maxWidth: 560)
     .padding(.horizontal, 20)
     .padding(.bottom, 8)
@@ -305,18 +348,11 @@ struct FilmFormSubmitBar: View {
 }
 
 extension View {
-  /// Shared chrome for a film form: the app background, interactive keyboard
-  /// dismissal, and a Done key above number pads (which have no return key).
-  func filmFormChrome(focus: FocusState<FilmFormFocus?>.Binding) -> some View {
+  /// Shared chrome for a film form: the app background and interactive
+  /// keyboard dismissal. The submit bar carries the keyboard's Done.
+  func filmFormChrome() -> some View {
     self
       .spineScreenBackground()
       .scrollDismissesKeyboard(.interactively)
-      .toolbar {
-        ToolbarItemGroup(placement: .keyboard) {
-          Spacer()
-          Button("Done") { focus.wrappedValue = nil }
-            .fontWeight(.semibold)
-        }
-      }
   }
 }

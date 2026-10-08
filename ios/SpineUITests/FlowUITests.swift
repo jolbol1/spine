@@ -137,46 +137,4 @@ final class FlowUITests: SpineUITestCase {
 
     app.staticTexts["TOTAL DISCS"].waitToAppear()
   }
-
-  // MARK: Helpers
-
-  @discardableResult
-  private func createFilm(_ account: Account, title: String, year: Int, format: String)
-    async throws -> String
-  {
-    let film = try await callAPI(
-      account, "createFilm",
-      ["title": title, "year": year, "format": format, "discCount": 1]) as? [String: Any]
-    return try XCTUnwrap(film?["id"] as? String)
-  }
-
-  private func film(_ account: Account, titled title: String) async throws -> [String: Any]? {
-    let films = try await callAPI(account, "listFilms") as? [[String: Any]]
-    return films?.first { $0["title"] as? String == title }
-  }
-
-  private func element(_ app: XCUIApplication, labelStartingWith prefix: String) -> XCUIElement {
-    app.descendants(matching: .any)
-      .matching(NSPredicate(format: "label BEGINSWITH %@", prefix)).firstMatch
-  }
-
-  /// The highest match on screen — a confirmation's button rather than the
-  /// control it's anchored to.
-  private func topmost(_ query: XCUIElementQuery) -> XCUIElement {
-    XCTAssertTrue(query.firstMatch.waitForExistence(timeout: 10))
-    return query.allElementsBoundByIndex.min { $0.frame.minY < $1.frame.minY }!
-  }
-
-  /// Poll the server until `check` holds.
-  private func eventually(
-    timeout: TimeInterval = 20, file: StaticString = #filePath, line: UInt = #line,
-    _ check: @escaping () async throws -> Bool
-  ) async throws {
-    let deadline = Date().addingTimeInterval(timeout)
-    while Date() < deadline {
-      if try await check() { return }
-      try await Task.sleep(for: .milliseconds(500))
-    }
-    XCTFail("the server never reached the expected state", file: file, line: line)
-  }
 }

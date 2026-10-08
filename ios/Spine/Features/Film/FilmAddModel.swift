@@ -28,7 +28,24 @@ final class FilmAddModel {
   /// into sight.
   private(set) var importCount = 0
 
+  /// A scanned barcode that's already catalogued — the chain waits for the
+  /// user to open that film or look it up anyway.
+  private(set) var scanDuplicate: Film?
+  /// Bumped when a scan turns out to be catalogued, for the warning haptic.
+  private(set) var duplicateScanCount = 0
+
   private var scanTask: Task<Void, Never>?
+
+  init() {}
+
+  /// A form started from a disc that's already partly known: the import
+  /// field searches Blu-ray.com for it straight away.
+  init(prefill: AddFilmPrefill) {
+    query = prefill.query
+    values.title = prefill.title
+    values.year = prefill.year.map(String.init) ?? ""
+    if let format = prefill.format { values.format = format }
+  }
 
   var isURL: Bool { FilmImport.looksLikeURL(query) }
   var importing: Bool { importingURL != nil }
@@ -44,6 +61,8 @@ final class FilmAddModel {
   /// Run from `.task(id: query)`, so a newer keystroke cancels this one:
   /// a 400 ms debounce, then a Blu-ray.com search.
   func autocomplete(api: APIClient) async {
+    // Typing over a catalogued scan moves on from it.
+    if scanDuplicate != nil, query != scannedCode { scanDuplicate = nil }
     let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
     if isURL || query.count < 2 {
       results = []
@@ -118,16 +137,40 @@ final class FilmAddModel {
 
   // MARK: Scanned barcodes
 
-  /// The scanned-barcode chain: Blu-ray.com → CEX → web search → by hand.
-  /// A re-scan cancels the chain in flight, so a slow lookup for a misread
-  /// barcode can never land after — and override — the newer scan.
-  func scanned(_ code: String, api: APIClient, toasts: Toasts) {
+  /// A scanned barcode. One that's already catalogued stops here, for the
+  /// user to open that film or look it up anyway; anything else runs the
+  /// lookup chain.
+  func scanned(_ code: String, films: [Film], api: APIClient, toasts: Toasts) {
     scanTask?.cancel()
-    scanCount += 1
+    scanTask = nil
+    scanStage = nil
     scannedCode = code
     query = code
     results = []
     webMatches = []
+    let catalogued = CollectionMatch.duplicates(in: films, of: .init(title: "", barcode: code))
+    if let match = catalogued.first(where: { $0.reason == .barcode }) {
+      scanDuplicate = match.film
+      duplicateScanCount += 1
+      return
+    }
+    scanDuplicate = nil
+    scanCount += 1
+    lookUp(code, api: api, toasts: toasts)
+  }
+
+  /// "Look it up anyway": run the chain for the catalogued barcode.
+  func lookUpAnyway(api: APIClient, toasts: Toasts) {
+    guard let code = scannedCode else { return }
+    scanDuplicate = nil
+    lookUp(code, api: api, toasts: toasts)
+  }
+
+  /// The scanned-barcode chain: Blu-ray.com → CEX → web search → by hand.
+  /// A re-scan cancels the chain in flight, so a slow lookup for a misread
+  /// barcode can never land after — and override — the newer scan.
+  private func lookUp(_ code: String, api: APIClient, toasts: Toasts) {
+    scanTask?.cancel()
     scanTask = Task {
       await runScanChain(code, api: api, toasts: toasts)
       if !Task.isCancelled { scanTask = nil }

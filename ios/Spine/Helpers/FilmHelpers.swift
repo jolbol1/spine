@@ -56,7 +56,9 @@ nonisolated extension Film {
     return revenue / budget
   }
 
-  var coverURL: URL? { coverUrl.flatMap(URL.init(string:)) }
+  /// The cover to load — relative photographed covers resolve against the
+  /// signed-in server (see `CoverURL`).
+  var coverURL: URL? { CoverURL.resolve(coverUrl) }
 
   var tmdbURL: URL? {
     tmdbId.flatMap { URL(string: "https://www.themoviedb.org/\(isTV ? "tv" : "movie")/\($0)") }

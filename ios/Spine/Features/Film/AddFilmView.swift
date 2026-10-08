@@ -10,37 +10,53 @@ struct AddFilmView: View {
 
   @Environment(Library.self) private var library
   @Environment(Toasts.self) private var toasts
+  @Environment(Router.self) private var router
   @Environment(\.dismiss) private var dismiss
-  @State private var model = FilmAddModel()
+  @State private var model: FilmAddModel
+  /// The form as it opened — swiping away is blocked once it changes.
+  @State private var initialValues: FilmFormValues
   @State private var scannerOpen: Bool
   @State private var creating = false
   @State private var showsAllResults = false
   @FocusState private var focus: FilmFormFocus?
 
-  init(startScanning: Bool, onAdded: @escaping (Film) -> Void) {
+  init(startScanning: Bool, prefill: AddFilmPrefill? = nil, onAdded: @escaping (Film) -> Void) {
     self.startScanning = startScanning
     self.onAdded = onAdded
+    let model = prefill.map(FilmAddModel.init(prefill:)) ?? FilmAddModel()
+    _model = State(initialValue: model)
+    _initialValues = State(initialValue: model.values)
     _scannerOpen = State(initialValue: startScanning)
   }
 
+  /// Catalogued films that look like the disc in the form.
+  private var duplicates: [CollectionMatch.Match] {
+    CollectionMatch.duplicates(in: library.films, of: model.values.duplicateCandidate)
+  }
+
   var body: some View {
+    let duplicates = self.duplicates
     NavigationStack {
       ScrollViewReader { proxy in
         Form {
           importSection
           if model.showsWebMatches { webMatchesSection }
           if model.showsResults { resultsSection }
-          FilmFormSections(values: $model.values, focus: $focus, anchorID: Self.formTop)
+          FilmFormSections(
+            values: $model.values, focus: $focus, anchorID: Self.formTop,
+            duplicates: duplicates, onOpenDuplicate: { router.showFilm(id: $0.id) })
         }
         .onChange(of: model.importCount) {
           if focus == .importQuery { focus = nil }
           withAnimation { proxy.scrollTo(Self.formTop, anchor: .top) }
         }
       }
-      .filmFormChrome(focus: $focus)
+      .filmFormChrome()
       .animation(.default, value: model.showsResults)
       .animation(.default, value: model.showsWebMatches)
       .animation(.default, value: model.scanStage == nil)
+      .animation(.default, value: model.scanDuplicate)
+      .animation(.default, value: duplicates.map(\.film.id))
       .navigationTitle("Add a film")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
@@ -49,17 +65,20 @@ struct AddFilmView: View {
         }
       }
       .safeAreaBar(edge: .bottom) {
-        FilmFormSubmitBar(label: "Add to collection", pending: creating, action: add)
+        FilmFormSubmitBar(
+          label: CollectionMatch.isSameDisc(duplicates) ? "Add another copy" : "Add to collection",
+          pending: creating, focus: $focus, action: add)
       }
       .task(id: model.query) { await model.autocomplete(api: library.api) }
       .sheet(isPresented: $scannerOpen) {
         FilmBarcodeScanSheet { code in
-          model.scanned(code, api: library.api, toasts: toasts)
+          model.scanned(code, films: library.films, api: library.api, toasts: toasts)
         }
       }
       .sensoryFeedback(.success, trigger: model.scanCount)
+      .sensoryFeedback(.warning, trigger: model.duplicateScanCount)
     }
-    .interactiveDismissDisabled(creating || model.values != .empty)
+    .interactiveDismissDisabled(creating || model.values != initialValues)
   }
 
   private static let formTop = "film-form-top"
@@ -111,6 +130,10 @@ struct AddFilmView: View {
         Label("Scan a barcode", systemImage: "barcode.viewfinder")
       }
 
+      if let film = model.scanDuplicate {
+        scannedDuplicate(film)
+      }
+
       if let stage = model.scanStage {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
           ProgressView().controlSize(.small)
@@ -133,6 +156,49 @@ struct AddFilmView: View {
       )
     }
     .listRowBackground(Color.spineCard)
+  }
+
+  /// A scanned barcode that's already catalogued: open that copy, or run
+  /// the lookup anyway (a second copy is fine).
+  private func scannedDuplicate(_ film: Film) -> some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 12) {
+        PosterFrame(url: film.coverURL, title: film.title, cornerRadius: 3, maxPixelSize: 160)
+          .frame(width: 40)
+        VStack(alignment: .leading, spacing: 3) {
+          Text(
+            "\(Text("Already in your collection:").fontWeight(.semibold).foregroundStyle(.lbOrange)) \(film.catalogueLine)"
+          )
+          .font(.subheadline)
+          .foregroundStyle(.spineForeground)
+          .fixedSize(horizontal: false, vertical: true)
+          if let code = model.scannedCode {
+            Text(code)
+              .font(.caption.monospacedDigit())
+              .foregroundStyle(.spineMutedForeground)
+              .accessibilityLabel("Barcode \(code)")
+          }
+        }
+      }
+      .accessibilityElement(children: .combine)
+      HStack(spacing: 10) {
+        Button {
+          router.showFilm(id: film.id)
+        } label: {
+          Text("Open")
+            .fontWeight(.semibold)
+            .foregroundStyle(.onAccent)
+            .padding(.horizontal, 6)
+        }
+        .buttonStyle(.glassProminent)
+        .tint(.lbGreen)
+        Button("Look it up anyway") {
+          model.lookUpAnyway(api: library.api, toasts: toasts)
+        }
+        .buttonStyle(.glass)
+      }
+    }
+    .padding(.vertical, 4)
   }
 
   // MARK: Matches

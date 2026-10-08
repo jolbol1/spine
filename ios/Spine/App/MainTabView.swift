@@ -29,11 +29,11 @@ struct MainTabView: View {
     .tabBarMinimizeBehavior(.onScrollDown)
     .sheet(item: $router.sheet) { sheet in
       switch sheet {
-      case .addFilm(let scan):
-        AddFilmView(startScanning: scan) { film in
+      case .addFilm(let scan, let prefill, let staysOnAdd):
+        AddFilmView(startScanning: scan, prefill: prefill) { film in
           router.sheet = nil
-          router.popToRoot(.collection)
-          router.open(.film(id: film.id), in: .collection)
+          guard !staysOnAdd else { return }
+          router.showFilm(id: film.id)
         }
       case .settings:
         SettingsView()

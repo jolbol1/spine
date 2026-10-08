@@ -278,7 +278,7 @@ private struct WishlistItemRow: View {
 
   var body: some View {
     HStack(alignment: .top, spacing: 14) {
-      PosterFrame(url: item.cover, title: item.title, cornerRadius: 5, maxPixelSize: 300)
+      PosterFrame(url: item.coverURL, title: item.title, cornerRadius: 5, maxPixelSize: 300)
         .frame(width: 72)
         .accessibilityHidden(true)
 
@@ -413,10 +413,6 @@ extension WishlistItem {
   fileprivate var link: URL? {
     url.flatMap { URL(string: $0.trimmingCharacters(in: .whitespaces)) }
       .flatMap { $0.scheme == nil ? URL(string: "https://\($0.absoluteString)") : $0 }
-  }
-
-  fileprivate var cover: URL? {
-    coverUrl.flatMap { URL(string: $0.trimmingCharacters(in: .whitespaces)) }
   }
 }
 

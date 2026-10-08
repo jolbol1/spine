@@ -142,6 +142,28 @@ nonisolated extension APIClient {
     return try await call("lookupSpine", Input(title: title, year: year), timeout: 120)
   }
 
+  // MARK: Photos
+
+  /// Read the disc spines in one shelf photo and check each against the
+  /// collection. The server has Claude read it, which takes 20–90 s.
+  /// `image` is base64; `mediaType` is image/jpeg, image/png, or image/webp.
+  /// Spines come back in reading order — left to right, or top to bottom
+  /// when `arrangement` says the discs are stacked.
+  func scanShelfPhoto(
+    image: String, mediaType: String, arrangement: ShelfOrientation? = nil
+  ) async throws -> Outcome<ShelfPhotoReading> {
+    var input = ["image": image, "mediaType": mediaType]
+    if let arrangement { input["arrangement"] = arrangement.rawValue }
+    return try await call("scanShelfPhoto", input, timeout: 180)
+  }
+
+  /// Store a photographed front cover (base64 JPEG, PNG, or WebP, already
+  /// cropped to the format's proportions). Answers the relative URL to put
+  /// in the film's cover field.
+  func uploadCover(image: String) async throws -> Outcome<UploadedCover> {
+    try await call("uploadCover", ["image": image], timeout: 90)
+  }
+
   // MARK: Per-film enrichment
 
   func rematchTmdb(id: String) async throws -> Outcome<TmdbRematch> {

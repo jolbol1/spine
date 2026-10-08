@@ -32,6 +32,7 @@ struct ShelfBuilderView: View {
     var capacity: String
     var pinned: [String]
     var excluded: [String]
+    var orientation: ShelfOrientation
   }
 
   init(editing: Shelf?) {
@@ -43,7 +44,8 @@ struct ShelfBuilderView: View {
       groupBy: editing?.groupBy,
       capacity: editing?.capacity.map(String.init) ?? "",
       pinned: editing?.pinned ?? [],
-      excluded: editing?.excluded ?? [])
+      excluded: editing?.excluded ?? [],
+      orientation: editing?.orientation ?? .upright)
     initialFields = fields
     _fields = State(initialValue: fields)
   }
@@ -68,7 +70,10 @@ struct ShelfBuilderView: View {
       pinned: fields.pinned.isEmpty ? nil : fields.pinned,
       excluded: fields.excluded.isEmpty ? nil : fields.excluded,
       manualOrder: editing?.manualOrder,
-      arrangedAt: editing?.arrangedAt)
+      arrangedAt: editing?.arrangedAt,
+      // Upright is the default, so it's left unset unless it was stored.
+      orientation: fields.orientation == .stacked
+        ? .stacked : editing?.orientation == .upright ? .upright : nil)
   }
 
   var body: some View {
@@ -78,6 +83,7 @@ struct ShelfBuilderView: View {
         rulesSection
         previewSection
         orderSection
+        orientationSection
         layoutSection
         overridesSection
         if editing != nil {
@@ -233,6 +239,32 @@ struct ShelfBuilderView: View {
       .accessibilityLabel("Flip direction")
       .accessibilityValue(direction == .desc ? "Descending" : "Ascending")
     }
+  }
+
+  /// Standing side by side or lying in a pile — which way the shelf's
+  /// order reads, and how the Shelves tab draws it.
+  private var orientationSection: some View {
+    Section {
+      Picker("How the discs sit", selection: $fields.orientation) {
+        ShelfOrientationOption(
+          title: "Standing upright", detail: "Side by side, read left to right",
+          systemImage: "books.vertical"
+        )
+        .tag(ShelfOrientation.upright)
+        ShelfOrientationOption(
+          title: "Stacked flat", detail: "In a pile, read top to bottom",
+          systemImage: "square.stack.3d.up"
+        )
+        .tag(ShelfOrientation.stacked)
+      }
+      .pickerStyle(.inline)
+      .labelsHidden()
+    } header: {
+      Text("How the discs sit")
+    } footer: {
+      Text("The shelf’s order runs the way you read it: the first disc is the leftmost, or the top of the pile.")
+    }
+    .listRowBackground(Color.spineCard)
   }
 
   private var layoutSection: some View {
@@ -552,5 +584,28 @@ private struct ShelfFilmPicker: View {
     .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search titles")
     .navigationTitle(title)
     .navigationBarTitleDisplayMode(.inline)
+  }
+}
+
+/// One way the discs can sit, as a picker row.
+private struct ShelfOrientationOption: View {
+  let title: String
+  let detail: String
+  let systemImage: String
+
+  var body: some View {
+    Label {
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+          .foregroundStyle(.spineForeground)
+        Text(detail)
+          .font(.caption)
+          .foregroundStyle(.spineMutedForeground)
+      }
+    } icon: {
+      Image(systemName: systemImage)
+        .foregroundStyle(.lbBlue)
+    }
+    .accessibilityElement(children: .combine)
   }
 }

@@ -73,4 +73,18 @@ nonisolated struct Shelf: Codable, Hashable, Identifiable, Sendable {
   var manualOrder: [String]?
   /// ISO-8601 instant the physical shelf was last arranged.
   var arrangedAt: String?
+  /// How the discs sit; nil means upright. The shelf's order runs in the
+  /// reading direction — left to right, or top to bottom for a stack.
+  var orientation: ShelfOrientation?
+}
+
+nonisolated enum ShelfOrientation: String, Codable, CaseIterable, Sendable {
+  /// Standing side by side, read left to right (the default).
+  case upright
+  /// Lying flat in a pile, read top to bottom.
+  case stacked
+}
+
+nonisolated extension Shelf {
+  var isStacked: Bool { orientation == .stacked }
 }

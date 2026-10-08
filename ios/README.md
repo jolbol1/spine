@@ -14,7 +14,10 @@ the web, and your collection, wishlist, shelves, and saved views are shared.
    network. Bare LAN addresses default to `http://`.
 
 Barcode scanning uses the camera (VisionKit), so it needs a device. The
-simulator falls back to typing the barcode in.
+simulator falls back to typing the barcode in. Scanning a front cover uses
+VisionKit's document camera on a device; the simulator picks a photo and
+crops it to the case's proportions instead. Shelf check (photos of disc
+spines) needs `ANTHROPIC_API_KEY` set on the server.
 
 ## How it talks to the server
 
@@ -28,6 +31,10 @@ simulator falls back to typing the barcode in.
   function of that name (`src/routes/api/v1/$.ts`). It runs the same
   middleware, validator, and row-level-security-scoped handler as the web.
   `ios/Spine/Core/Endpoints.swift` has a typed wrapper for each one.
+- **Covers** — a front cover scanned in the app is uploaded with
+  `uploadCover` and saved on the film as a relative path,
+  `/api/covers/<id>`, which the app resolves against the signed-in server
+  (`Helpers/CoverURL.swift`).
 
 `tests/e2e/native-api.e2e.ts` covers that contract from the server side.
 
@@ -41,8 +48,10 @@ Spine/
   Helpers/    film helpers and formatters shared with the web
   Design/     theme, poster/card components, cached images
   Features/   one folder per screen: Collection, Film (detail, form, add,
-              scan), Shelves, Wishlist, Stats, Oracle, People, Settings, Auth
+              scan), Shelves, ShelfCheck, Wishlist, Stats, Oracle, People,
+              Settings, Auth
 SpineUITests/ end-to-end UI tests against a running server
+UITestMedia/  a photo the shelf-check UI tests read
 ```
 
 The project uses Xcode's synchronized folders, so files added under
@@ -62,6 +71,19 @@ TEST_RUNNER_SPINE_SERVER=http://localhost:3000 xcodebuild test \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
+The photo tests pick the newest photo in the simulator's library. The
+simulator has no document camera, so cover scans go through the photo
+fallback and any photo works. The shelf-check tests that need a real
+reading skip when the server has no `ANTHROPIC_API_KEY`. The order check
+also needs the synthetic shelf in `UITestMedia` to be the newest photo:
+
+```bash
+xcrun simctl addmedia 'iPhone 17 Pro' ios/UITestMedia/shelf-bluray.jpg
+```
+
+`testAShelfCheckShowsWhyAPhotoCouldntBeRead` is the reverse: it checks the
+missing-key error, so it skips against a server that can read photos.
+
 ## Debug launch arguments
 
 Debug builds accept launch arguments for automation (`App/DebugLaunch.swift`):
@@ -71,5 +93,5 @@ Debug builds accept launch arguments for automation (`App/DebugLaunch.swift`):
 | `-SpineResetSession YES` | Start signed out. |
 | `-SpineServer <url> -SpineEmail <email> -SpinePassword <pw>` | Sign in when no session is stored. |
 | `-SpineTab collection\|shelves\|wishlist\|stats\|oracle` | The starting tab. |
-| `-SpineOpen film:<id>` / `person:<name>` | Push a screen onto the starting tab. |
+| `-SpineOpen film:<id>` / `person:<name>` / `shelf-check[:<shelf id>]` | Push a screen onto the starting tab. |
 | `-SpineSheet add\|scan\|settings` | Present a sheet. |

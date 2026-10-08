@@ -70,7 +70,10 @@ struct ShelfArrangeView: View {
   }
 
   private var footer: String {
-    var text = "Drag films into the order they stand on the physical shelf."
+    var text =
+      shelf.isStacked
+      ? "Drag films into the order they lie in the pile, top first."
+      : "Drag films into the order they stand on the physical shelf."
     if let capacity = shelf.capacity, order.count > capacity {
       text += " Slots past \(capacity) are the suggested spill."
     }
