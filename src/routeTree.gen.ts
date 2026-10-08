@@ -19,6 +19,7 @@ import { Route as AppShelvesRouteImport } from './routes/_app/shelves'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppOracleRouteImport } from './routes/_app/oracle'
 import { Route as AppAddRouteImport } from './routes/_app/add'
+import { Route as ApiV1SplatRouteImport } from './routes/api/v1/$'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AppPeoplePersonRouteImport } from './routes/_app/people.$person'
 import { Route as AppFilmsFilmIdRouteImport } from './routes/_app/films.$filmId'
@@ -72,6 +73,11 @@ const AppAddRoute = AppAddRouteImport.update({
   path: '/add',
   getParentRoute: () => AppRoute,
 } as any)
+const ApiV1SplatRoute = ApiV1SplatRouteImport.update({
+  id: '/api/v1/$',
+  path: '/api/v1/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/films/$filmId': typeof AppFilmsFilmIdRoute
   '/people/$person': typeof AppPeoplePersonRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/v1/$': typeof ApiV1SplatRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByTo {
   '/films/$filmId': typeof AppFilmsFilmIdRoute
   '/people/$person': typeof AppPeoplePersonRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/v1/$': typeof ApiV1SplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   '/_app/films/$filmId': typeof AppFilmsFilmIdRoute
   '/_app/people/$person': typeof AppPeoplePersonRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/v1/$': typeof ApiV1SplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -147,6 +156,7 @@ export interface FileRouteTypes {
     | '/films/$filmId'
     | '/people/$person'
     | '/api/auth/$'
+    | '/api/v1/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/films/$filmId'
     | '/people/$person'
     | '/api/auth/$'
+    | '/api/v1/$'
   id:
     | '__root__'
     | '/_app'
@@ -176,6 +187,7 @@ export interface FileRouteTypes {
     | '/_app/films/$filmId'
     | '/_app/people/$person'
     | '/api/auth/$'
+    | '/api/v1/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -183,6 +195,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiV1SplatRoute: typeof ApiV1SplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -257,6 +270,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAddRouteImport
       parentRoute: typeof AppRoute
     }
+    '/api/v1/$': {
+      id: '/api/v1/$'
+      path: '/api/v1/$'
+      fullPath: '/api/v1/$'
+      preLoaderRoute: typeof ApiV1SplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -312,6 +332,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiV1SplatRoute: ApiV1SplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
