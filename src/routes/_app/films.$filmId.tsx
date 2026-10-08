@@ -1,10 +1,12 @@
 import {
   useMutation,
+  useQuery,
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query"
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router"
 import {
+  Camera,
   ExternalLink,
   Eye,
   EyeOff,
@@ -17,6 +19,7 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
+import { CoverScanDialog } from "@/components/cover-scan"
 import { PosterFrame } from "@/components/film-card"
 import { FilmForm, filmToValues, valuesToInput } from "@/components/film-form"
 import { Badge } from "@/components/ui/badge"
@@ -38,7 +41,7 @@ import {
   isWatched,
   resolutionOf,
 } from "@/lib/film-helpers"
-import { filmQuery } from "@/lib/queries"
+import { filmQuery, filmsQuery } from "@/lib/queries"
 import {
   deleteFilmFn,
   setWatchedOverrideFn,
@@ -71,7 +74,10 @@ function FilmDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState(false)
+  const [scanningCover, setScanningCover] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // The rest of the collection, for the edit form's duplicate warning.
+  const { data: collection } = useQuery({ ...filmsQuery, enabled: editing })
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["films"] })
@@ -145,6 +151,19 @@ function FilmDetailPage() {
   const watched = isWatched(film)
   const overridden = film.watchedOverride != null
 
+  // A scanned cover saves straight away, with every other field as it is.
+  const saveScannedCover = async (coverUrl: string) => {
+    const result = await updateFilmFn({
+      data: {
+        id: film.id,
+        ...valuesToInput({ ...filmToValues(film), coverUrl }),
+      },
+    })
+    if (result && "error" in result) throw new Error(result.error)
+    await invalidate()
+    toast.success("Cover updated")
+  }
+
   return (
     <div className="grid gap-8 md:grid-cols-[260px_1fr]">
       <div className="space-y-3">
@@ -166,6 +185,19 @@ function FilmDetailPage() {
             <Trash2 className="size-4" />
           </Button>
         </div>
+        <Button
+          variant="outline"
+          className="w-full gap-2"
+          onClick={() => setScanningCover(true)}
+        >
+          <Camera className="size-4" /> Scan cover
+        </Button>
+        <CoverScanDialog
+          open={scanningCover}
+          onOpenChange={setScanningCover}
+          format={film.format}
+          onCover={saveScannedCover}
+        />
       </div>
 
       <div className="space-y-6">
@@ -525,6 +557,8 @@ function FilmDetailPage() {
           <FilmForm
             initial={filmToValues(film)}
             submitLabel="Save changes"
+            collection={collection}
+            excludeId={film.id}
             pending={update.isPending}
             onSubmit={(values) =>
               update.mutate({

@@ -21,6 +21,11 @@ const server = vi.hoisted(() => ({
   listWishlist: vi.fn(),
 }))
 
+// The header links to Shelf check; render it without a router.
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  Link: (await import("@/test/link-stub")).LinkStub,
+}))
 vi.mock("@/server/films", () => ({
   listFilmsFn: server.listFilms,
   getFilmFn: vi.fn(),

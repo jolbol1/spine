@@ -16,6 +16,7 @@ import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppWishlistRouteImport } from './routes/_app/wishlist'
 import { Route as AppStatsRouteImport } from './routes/_app/stats'
 import { Route as AppShelvesRouteImport } from './routes/_app/shelves'
+import { Route as AppShelfCheckRouteImport } from './routes/_app/shelf-check'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppOracleRouteImport } from './routes/_app/oracle'
 import { Route as AppAddRouteImport } from './routes/_app/add'
@@ -57,6 +58,11 @@ const AppStatsRoute = AppStatsRouteImport.update({
 const AppShelvesRoute = AppShelvesRouteImport.update({
   id: '/shelves',
   path: '/shelves',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppShelfCheckRoute = AppShelfCheckRouteImport.update({
+  id: '/shelf-check',
+  path: '/shelf-check',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSettingsRoute = AppSettingsRouteImport.update({
@@ -107,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/add': typeof AppAddRoute
   '/oracle': typeof AppOracleRoute
   '/settings': typeof AppSettingsRoute
+  '/shelf-check': typeof AppShelfCheckRoute
   '/shelves': typeof AppShelvesRoute
   '/stats': typeof AppStatsRoute
   '/wishlist': typeof AppWishlistRoute
@@ -122,6 +129,7 @@ export interface FileRoutesByTo {
   '/add': typeof AppAddRoute
   '/oracle': typeof AppOracleRoute
   '/settings': typeof AppSettingsRoute
+  '/shelf-check': typeof AppShelfCheckRoute
   '/shelves': typeof AppShelvesRoute
   '/stats': typeof AppStatsRoute
   '/wishlist': typeof AppWishlistRoute
@@ -140,6 +148,7 @@ export interface FileRoutesById {
   '/_app/add': typeof AppAddRoute
   '/_app/oracle': typeof AppOracleRoute
   '/_app/settings': typeof AppSettingsRoute
+  '/_app/shelf-check': typeof AppShelfCheckRoute
   '/_app/shelves': typeof AppShelvesRoute
   '/_app/stats': typeof AppStatsRoute
   '/_app/wishlist': typeof AppWishlistRoute
@@ -159,6 +168,7 @@ export interface FileRouteTypes {
     | '/add'
     | '/oracle'
     | '/settings'
+    | '/shelf-check'
     | '/shelves'
     | '/stats'
     | '/wishlist'
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
     | '/add'
     | '/oracle'
     | '/settings'
+    | '/shelf-check'
     | '/shelves'
     | '/stats'
     | '/wishlist'
@@ -191,6 +202,7 @@ export interface FileRouteTypes {
     | '/_app/add'
     | '/_app/oracle'
     | '/_app/settings'
+    | '/_app/shelf-check'
     | '/_app/shelves'
     | '/_app/stats'
     | '/_app/wishlist'
@@ -262,6 +274,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppShelvesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/shelf-check': {
+      id: '/_app/shelf-check'
+      path: '/shelf-check'
+      fullPath: '/shelf-check'
+      preLoaderRoute: typeof AppShelfCheckRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/settings': {
       id: '/_app/settings'
       path: '/settings'
@@ -325,6 +344,7 @@ interface AppRouteChildren {
   AppAddRoute: typeof AppAddRoute
   AppOracleRoute: typeof AppOracleRoute
   AppSettingsRoute: typeof AppSettingsRoute
+  AppShelfCheckRoute: typeof AppShelfCheckRoute
   AppShelvesRoute: typeof AppShelvesRoute
   AppStatsRoute: typeof AppStatsRoute
   AppWishlistRoute: typeof AppWishlistRoute
@@ -337,6 +357,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAddRoute: AppAddRoute,
   AppOracleRoute: AppOracleRoute,
   AppSettingsRoute: AppSettingsRoute,
+  AppShelfCheckRoute: AppShelfCheckRoute,
   AppShelvesRoute: AppShelvesRoute,
   AppStatsRoute: AppStatsRoute,
   AppWishlistRoute: AppWishlistRoute,

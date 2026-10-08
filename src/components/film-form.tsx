@@ -1,7 +1,9 @@
 import { useMutation } from "@tanstack/react-query"
-import { ImageIcon, Loader2, Search, Sparkles } from "lucide-react"
-import { useState } from "react"
+import { Camera, ImageIcon, Loader2, Search, Sparkles } from "lucide-react"
+import { useMemo, useState } from "react"
 import { toast } from "sonner"
+import { CoverScanDialog } from "@/components/cover-scan"
+import { DuplicateWarning } from "@/components/duplicate-warning"
 import { PosterFrame } from "@/components/film-card"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,6 +24,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import type { Film } from "@/db/schema"
+import { findDuplicates, isSameDisc } from "@/lib/collection-match"
 import { FORMATS, HDR_TYPES, PACKAGE_TYPES, REGIONS } from "@/lib/film-helpers"
 import { searchBlurayFn } from "@/server/bluray"
 import type { BlurayResult } from "@/server/bluray"
@@ -155,13 +158,47 @@ export function FilmForm({
   submitLabel,
   pending,
   onSubmit,
+  collection,
+  excludeId,
+  sameDiscSubmitLabel,
 }: {
   initial: FilmFormValues
   submitLabel: string
   pending: boolean
   onSubmit: (values: FilmFormValues) => void
+  /** The collection to warn about duplicates against, once loaded. */
+  collection?: ReadonlyArray<Film>
+  /** The film being edited, which isn't its own duplicate. */
+  excludeId?: string
+  /** The submit label when the form would add a disc already catalogued. */
+  sameDiscSubmitLabel?: string
 }) {
   const [values, setValues] = useState(initial)
+  const [scanningCover, setScanningCover] = useState(false)
+
+  const duplicates = useMemo(
+    () =>
+      collection
+        ? findDuplicates(
+            collection,
+            {
+              title: values.title,
+              year: toInt(values.year),
+              format: values.format,
+              barcode: values.barcode,
+            },
+            excludeId
+          )
+        : [],
+    [
+      collection,
+      excludeId,
+      values.title,
+      values.year,
+      values.format,
+      values.barcode,
+    ]
+  )
 
   const spineLookup = useMutation({
     mutationFn: lookupSpineFn,
@@ -217,6 +254,20 @@ export function FilmForm({
               year: prev.year || (result.year?.toString() ?? ""),
             }))
           }}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full gap-2"
+          onClick={() => setScanningCover(true)}
+        >
+          <Camera className="size-4" /> Scan cover
+        </Button>
+        <CoverScanDialog
+          open={scanningCover}
+          onOpenChange={setScanningCover}
+          format={values.format}
+          onCover={(url) => setValues((prev) => ({ ...prev, coverUrl: url }))}
         />
         <Field>
           <FieldLabel htmlFor="coverUrl">Cover URL</FieldLabel>
@@ -454,11 +505,19 @@ export function FilmForm({
             onChange={input("notes")}
           />
         </Field>
-        <div className="flex justify-end gap-2">
-          <Button type="submit" disabled={pending}>
-            {pending && <Loader2 className="size-4 animate-spin" />}
-            {submitLabel}
-          </Button>
+        <div>
+          {/* Always mounted, so a warning appearing is announced. */}
+          <div role="status">
+            <DuplicateWarning matches={duplicates} className="mb-4" />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="submit" disabled={pending}>
+              {pending && <Loader2 className="size-4 animate-spin" />}
+              {sameDiscSubmitLabel && isSameDisc(duplicates)
+                ? sameDiscSubmitLabel
+                : submitLabel}
+            </Button>
+          </div>
         </div>
       </div>
     </form>

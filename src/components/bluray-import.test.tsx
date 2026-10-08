@@ -11,7 +11,9 @@ import {
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import { BlurayImportBox } from "@/components/bluray-import"
 import type { FilmFormValues } from "@/components/film-form"
+import type { Film } from "@/db/schema"
 import type { BlurayResult } from "@/server/bluray"
+import { filmFixture } from "@/test/film-fixture"
 
 // jsdom leaves scrollIntoView unimplemented.
 beforeAll(() => {
@@ -25,6 +27,10 @@ const server = vi.hoisted(() => ({
   searchWebBarcode: vi.fn(),
 }))
 
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  Link: (await import("@/test/link-stub")).LinkStub,
+}))
 vi.mock("@/server/bluray", () => ({
   searchBlurayFn: server.searchBluray,
   importBlurayUrlFn: server.importBluray,
@@ -53,14 +59,21 @@ vi.mock("@/components/barcode-scan", () => ({
 
 function renderImportBox(
   onImport: (values: FilmFormValues) => void,
-  { autoOpenScanner = true }: { autoOpenScanner?: boolean } = {}
+  {
+    autoOpenScanner = true,
+    collection,
+  }: { autoOpenScanner?: boolean; collection?: Array<Film> } = {}
 ) {
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false } },
   })
   render(
     <QueryClientProvider client={queryClient}>
-      <BlurayImportBox onImport={onImport} autoOpenScanner={autoOpenScanner} />
+      <BlurayImportBox
+        onImport={onImport}
+        autoOpenScanner={autoOpenScanner}
+        collection={collection}
+      />
     </QueryClientProvider>
   )
 }
@@ -111,6 +124,46 @@ describe("BlurayImportBox scanned-barcode chain", () => {
     const values = onImport.mock.calls[0][0] as FilmFormValues
     expect(values.title).toBe("Archive Film")
     expect(values.barcode).toBe("5012345678900")
+  })
+})
+
+describe("BlurayImportBox scanning a disc already catalogued", () => {
+  const owned = filmFixture({
+    title: "Archive Film",
+    year: 1999,
+    format: "DVD",
+    // The UPC-A form of the scanned EAN-13 — the same disc.
+    barcode: "012345678900",
+  })
+
+  it("says so instead of looking it up, and looks it up on request", async () => {
+    server.searchBluray.mockResolvedValue([])
+    server.importCex.mockReturnValue(new Promise(() => {}))
+    renderImportBox(vi.fn(), {
+      collection: [owned, filmFixture({ title: "Other", barcode: null })],
+    })
+
+    // The stand-in scanner reports 5012345678900; make it match.
+    owned.barcode = "5012345678900"
+    screen.getByRole("button", { name: "simulate scan" }).click()
+
+    const notice = await screen.findByRole("status")
+    expect(notice.textContent).toContain(
+      "Already in your collection: Archive Film (1999) · DVD"
+    )
+    // A link styled as a button, as Base UI renders it.
+    expect(
+      screen.getByRole("button", { name: "Open" }).getAttribute("href")
+    ).toBe(`/films/${owned.id}`)
+    expect(server.searchBluray).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Look it up anyway" }))
+    await waitFor(() =>
+      expect(server.searchBluray).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { query: "5012345678900" } })
+      )
+    )
+    expect(screen.queryByText(/Already in your collection/)).toBeNull()
   })
 })
 

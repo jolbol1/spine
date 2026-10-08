@@ -1,4 +1,4 @@
-import { ChevronDown, Plus, X } from "lucide-react"
+import { ChevronDown, Layers, Library, Plus, X } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
@@ -26,6 +26,7 @@ import {
 import type {
   Film,
   Shelf,
+  ShelfOrientation,
   ShelfRule,
   ShelfRuleField,
   ShelfSortKey,
@@ -38,8 +39,29 @@ import {
   matchesShelfRules,
   shelfFieldOptions,
 } from "@/lib/shelves"
+import { cn } from "@/lib/utils"
 
 const NONE = "none"
+
+const ORIENTATIONS: Array<{
+  value: ShelfOrientation
+  label: string
+  hint: string
+  Icon: typeof Library
+}> = [
+  {
+    value: "upright",
+    label: "Standing upright",
+    hint: "Side by side, read left to right",
+    Icon: Library,
+  },
+  {
+    value: "stacked",
+    label: "Stacked flat",
+    hint: "In a pile, read top to bottom",
+    Icon: Layers,
+  },
+]
 
 const GROUP_BY_OPTIONS = [
   [NONE, "No grouping"],
@@ -134,6 +156,7 @@ export function ShelfBuilderDialog({
   const [sort, setSort] = useState<ShelfSortLevel[]>([])
   const [groupBy, setGroupBy] = useState<string>(NONE)
   const [capacity, setCapacity] = useState("")
+  const [orientation, setOrientation] = useState<ShelfOrientation>("upright")
 
   // Re-seed the form whenever the dialog opens on a different shelf.
   useEffect(() => {
@@ -143,6 +166,7 @@ export function ShelfBuilderDialog({
     setSort(editing?.sort ?? [])
     setGroupBy(editing?.groupBy ?? NONE)
     setCapacity(editing?.capacity != null ? String(editing.capacity) : "")
+    setOrientation(editing?.orientation ?? "upright")
   }, [open, editing])
 
   const optionsByField = useMemo(() => {
@@ -166,8 +190,10 @@ export function ShelfBuilderDialog({
       excluded: editing?.excluded,
       manualOrder: editing?.manualOrder,
       arrangedAt: editing?.arrangedAt,
+      // Upright is the default, so only a stack is stored.
+      orientation: orientation === "stacked" ? "stacked" : undefined,
     }),
-    [editing, name, rules, sort, groupBy, capacity]
+    [editing, name, rules, sort, groupBy, capacity, orientation]
   )
 
   // Live preview: what the draft's rules match, and how much of that a
@@ -231,6 +257,49 @@ export function ShelfBuilderDialog({
               onChange={(e) => setName(e.target.value)}
             />
           </Field>
+
+          <fieldset className="space-y-2">
+            <legend className="mb-2 text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
+              How the discs sit
+            </legend>
+            <div className="grid grid-cols-2 gap-2">
+              {ORIENTATIONS.map(({ value, label, hint, Icon }) => (
+                <label
+                  key={value}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-2.5 rounded-md border p-2.5 transition-colors has-focus-visible:ring-2 has-focus-visible:ring-ring",
+                    orientation === value
+                      ? "border-lb-green bg-lb-green/5"
+                      : "hover:bg-muted"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="shelf-orientation"
+                    value={value}
+                    checked={orientation === value}
+                    onChange={() => setOrientation(value)}
+                    className="sr-only"
+                  />
+                  <Icon
+                    aria-hidden
+                    className={cn(
+                      "mt-0.5 size-4 shrink-0",
+                      orientation === value
+                        ? "text-lb-green"
+                        : "text-muted-foreground"
+                    )}
+                  />
+                  <span className="space-y-0.5">
+                    <span className="block text-xs font-medium">{label}</span>
+                    <span className="block text-[11px] leading-snug text-muted-foreground">
+                      {hint}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
 
           <div className="space-y-2">
             <p className="text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">

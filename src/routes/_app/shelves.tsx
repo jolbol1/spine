@@ -13,10 +13,13 @@ import {
   ChevronRight,
   Ghost,
   GripVertical,
+  Layers,
+  ListOrdered,
   MoreVertical,
   Pencil,
   Pin,
   Plus,
+  ScanSearch,
   Sparkles,
   Trash2,
 } from "lucide-react"
@@ -24,6 +27,14 @@ import { useMemo, useState } from "react"
 import { toast } from "sonner"
 import { PosterFrame } from "@/components/film-card"
 import { ShelfBuilderDialog } from "@/components/shelf-builder"
+import {
+  Pile,
+  PileDisc,
+  PileGhost,
+  PileGroupHeader,
+  ShelfDiscMenu,
+  newDiscHint,
+} from "@/components/shelf-pile"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -59,6 +70,7 @@ import {
   shelfGroupKey,
   shelfOverflow,
 } from "@/lib/shelves"
+import { shelfOrientation } from "@/lib/shelf-pile"
 import { saveShelvesFn } from "@/server/settings"
 import { cn } from "@/lib/utils"
 
@@ -131,17 +143,10 @@ function ShelfFilmCard({
   onExclude: (filmId: string, shelfId: string) => void
   onNudge: (index: number, delta: -1 | 1) => void
 }) {
-  const isNew = isNewSinceArranged(shelf, film)
+  const newHint = newDiscHint(shelf, film, ordered, position, "upright")
+  const isNew = newHint != null
   const pinnedHere = shelf.pinned?.includes(film.id) ?? false
   const index = position - 1
-  const before = index > 0 ? ordered[index - 1] : null
-  const after = index < ordered.length - 1 ? ordered[index + 1] : null
-  const newHint = isNew
-    ? `Added since this shelf was arranged — slot ${position}` +
-      (ordered.length > 1
-        ? `, between ${before ? before.title : "the start"} and ${after ? after.title : "the end"}`
-        : "")
-    : undefined
 
   return (
     <div className="group relative w-24 shrink-0" title={newHint}>
@@ -197,40 +202,15 @@ function ShelfFilmCard({
           </Button>
         </div>
       ) : (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <button
-                type="button"
-                aria-label={`Shelf options for ${film.title}`}
-                className="absolute -top-2 -right-2 hidden rounded-full border bg-background p-1 shadow-sm group-hover:block focus-visible:block"
-              />
-            }
-          >
-            <MoreVertical className="size-3.5" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {shelves
-              .filter((s) => s.id !== shelf.id)
-              .map((s) => (
-                <DropdownMenuItem
-                  key={s.id}
-                  onClick={() => onPin(film.id, s.id)}
-                >
-                  <Pin className="size-3.5" /> Pin to {s.name}
-                </DropdownMenuItem>
-              ))}
-            {pinnedHere ? (
-              <DropdownMenuItem onClick={() => onUnpin(film.id)}>
-                Unpin — follow rules again
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem onClick={() => onExclude(film.id, shelf.id)}>
-                Remove from this shelf
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <ShelfDiscMenu
+          film={film}
+          shelf={shelf}
+          shelves={shelves}
+          triggerClassName="absolute -top-2 -right-2 hidden rounded-full border bg-background p-1 shadow-sm group-hover:block focus-visible:block"
+          onPin={onPin}
+          onUnpin={onUnpin}
+          onExclude={onExclude}
+        />
       )}
     </div>
   )
@@ -455,9 +435,19 @@ function ShelvesPage() {
               </button>
             ))}
           </div>
-          <Button variant="outline" className="gap-2" onClick={openNewShelf}>
-            <Plus className="size-4" /> New custom shelf
-          </Button>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button variant="outline" className="gap-2" onClick={openNewShelf}>
+              <Plus className="size-4" /> New custom shelf
+            </Button>
+            <Button
+              nativeButton={false}
+              variant="outline"
+              className="gap-2"
+              render={<Link to="/shelf-check" />}
+            >
+              <ScanSearch className="size-4" /> Shelf check
+            </Button>
+          </div>
         </Empty>
         <ShelfBuilderDialog
           open={builderOpen}
@@ -500,6 +490,14 @@ function ShelvesPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            nativeButton={false}
+            variant="outline"
+            className="gap-2"
+            render={<Link to="/shelf-check" />}
+          >
+            <ScanSearch className="size-4" /> Shelf check
+          </Button>
           <Button
             variant={showGhosts ? "secondary" : "outline"}
             className="gap-2"
@@ -553,8 +551,33 @@ function ShelvesPage() {
           isNewSinceArranged(shelf, f)
         ).length
 
+        const stacked = shelfOrientation(shelf) === "stacked"
+
         // Contiguous groupBy segments — a header above each run.
         let lastGroup: string | null | undefined
+        const groupStartingAt = (entry: ShelfEntry) => {
+          const group =
+            entry.kind === "film" && shelf.groupBy
+              ? shelfGroupKey(entry.film, shelf)
+              : undefined
+          const starts = group !== undefined && group !== lastGroup
+          if (group !== undefined) lastGroup = group
+          return starts ? (group ?? "Other") : null
+        }
+        const discProps = (film: Film, position: number) => ({
+          film,
+          position,
+          shelf,
+          shelves,
+          ordered,
+          overCapacity: shelf.capacity != null && position > shelf.capacity,
+          manualMode,
+          onPin: pinTo,
+          onUnpin: unpin,
+          onExclude: excludeFrom,
+          onNudge: (index: number, delta: -1 | 1) =>
+            nudge(shelf.id, index, delta),
+        })
         return (
           <section
             key={shelf.id}
@@ -585,6 +608,14 @@ function ShelvesPage() {
                 <GripVertical className="size-4" />
               </span>
               <h2 className="text-sm font-bold tracking-tight">{shelf.name}</h2>
+              {stacked && (
+                <span
+                  title="Stacked flat — read top to bottom"
+                  className="flex items-center gap-1 text-xs text-muted-foreground"
+                >
+                  <Layers aria-hidden className="size-3.5" /> stacked
+                </span>
+              )}
               <span className="text-xs text-muted-foreground tabular-nums">
                 {shelf.capacity != null
                   ? `${ordered.length} / ${shelf.capacity}`
@@ -636,6 +667,18 @@ function ShelvesPage() {
                   <ArrowDown className="size-4" />
                 </Button>
                 <Button
+                  nativeButton={false}
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Check the order of ${shelf.name} with a photo`}
+                  title="Check order with a photo"
+                  render={
+                    <Link to="/shelf-check" search={{ shelf: shelf.id }} />
+                  }
+                >
+                  <ListOrdered className="size-4" />
+                </Button>
+                <Button
                   variant={manualMode ? "secondary" : "ghost"}
                   size="sm"
                   aria-pressed={manualMode}
@@ -674,22 +717,10 @@ function ShelvesPage() {
               <p className="px-3 py-6 text-center text-xs text-muted-foreground">
                 Nothing matches this shelf yet.
               </p>
-            ) : (
-              <div className="flex flex-wrap items-end gap-3 p-3">
+            ) : stacked ? (
+              <Pile>
                 {entries.map((entry) => {
-                  const group =
-                    entry.kind === "film" && shelf.groupBy
-                      ? shelfGroupKey(entry.film, shelf)
-                      : undefined
-                  const groupHeader =
-                    group !== undefined && group !== lastGroup ? (
-                      <div className="w-full pt-1 first:pt-0">
-                        <p className="text-[10px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
-                          {group ?? "Other"}
-                        </p>
-                      </div>
-                    ) : null
-                  if (group !== undefined) lastGroup = group
+                  const group = groupStartingAt(entry)
                   return (
                     <span
                       key={
@@ -697,25 +728,39 @@ function ShelvesPage() {
                       }
                       className="contents"
                     >
-                      {groupHeader}
+                      {group != null && (
+                        <PileGroupHeader>{group}</PileGroupHeader>
+                      )}
+                      {entry.kind === "film" ? (
+                        <PileDisc {...discProps(entry.film, entry.position)} />
+                      ) : (
+                        <PileGhost item={entry.item} />
+                      )}
+                    </span>
+                  )
+                })}
+              </Pile>
+            ) : (
+              <div className="flex flex-wrap items-end gap-3 p-3">
+                {entries.map((entry) => {
+                  const group = groupStartingAt(entry)
+                  return (
+                    <span
+                      key={
+                        entry.kind === "film" ? entry.film.id : entry.item.id
+                      }
+                      className="contents"
+                    >
+                      {group != null && (
+                        <div className="w-full pt-1 first:pt-0">
+                          <p className="text-[10px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+                            {group}
+                          </p>
+                        </div>
+                      )}
                       {entry.kind === "film" ? (
                         <ShelfFilmCard
-                          film={entry.film}
-                          position={entry.position}
-                          shelf={shelf}
-                          shelves={shelves}
-                          ordered={ordered}
-                          overCapacity={
-                            shelf.capacity != null &&
-                            entry.position > shelf.capacity
-                          }
-                          manualMode={manualMode}
-                          onPin={pinTo}
-                          onUnpin={unpin}
-                          onExclude={excludeFrom}
-                          onNudge={(index, delta) =>
-                            nudge(shelf.id, index, delta)
-                          }
+                          {...discProps(entry.film, entry.position)}
                         />
                       ) : (
                         <GhostCard item={entry.item} />

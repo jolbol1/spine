@@ -1,12 +1,22 @@
 import { useMutation } from "@tanstack/react-query"
-import { Link2, Loader2, ScanBarcode, Search } from "lucide-react"
+import { Link } from "@tanstack/react-router"
+import {
+  Link2,
+  Loader2,
+  ScanBarcode,
+  Search,
+  TriangleAlert,
+} from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { BarcodeScanDialog } from "@/components/barcode-scan"
+import { SmallCover, filmLabel } from "@/components/duplicate-warning"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { FilmFormValues } from "@/components/film-form"
 import { emptyFilmValues } from "@/components/film-form"
+import type { Film } from "@/db/schema"
+import { findDuplicates } from "@/lib/collection-match"
 import { cn } from "@/lib/utils"
 import {
   blurayToValues,
@@ -87,12 +97,18 @@ const optionId = (index: number) => `bluray-import-option-${index}`
 export function BlurayImportBox({
   onImport,
   autoOpenScanner = false,
+  initialQuery = "",
+  collection,
 }: {
   onImport: (values: FilmFormValues) => void
   /** Open the camera scanner immediately (e.g. from the header Scan link). */
   autoOpenScanner?: boolean
+  /** Start with this in the box, so its autocomplete runs straight away. */
+  initialQuery?: string
+  /** A scanned barcode already in the collection skips the lookup chain. */
+  collection?: ReadonlyArray<Film>
 }) {
-  const [value, setValue] = useState("")
+  const [value, setValue] = useState(initialQuery)
   const [results, setResults] = useState<BlurayResult[]>([])
   const [webMatches, setWebMatches] = useState<TmdbTitleMatch[]>([])
   const [open, setOpen] = useState(false)
@@ -101,6 +117,11 @@ export function BlurayImportBox({
   const [scannerOpen, setScannerOpen] = useState(autoOpenScanner)
   const [scannedCode, setScannedCode] = useState<string | null>(null)
   const [scanStage, setScanStage] = useState<string | null>(null)
+  /** A scanned disc that's already catalogued, offered before any lookup. */
+  const [ownedScan, setOwnedScan] = useState<{
+    code: string
+    films: Array<Film>
+  } | null>(null)
   const boxRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const requestSeq = useRef(0)
@@ -188,16 +209,32 @@ export function BlurayImportBox({
     },
   })
 
-  const onScanned = (code: string) => {
-    scanAbortRef.current?.abort()
+  const lookUpScan = (code: string) => {
     const controller = new AbortController()
     scanAbortRef.current = controller
+    setOwnedScan(null)
+    scanLookup.mutate({ code, signal: controller.signal })
+  }
+
+  const onScanned = (code: string) => {
+    scanAbortRef.current?.abort()
+    scanAbortRef.current = null
+    setScanStage(null)
     setScannedCode(code)
     setValue(code)
     setResults([])
     setWebMatches([])
     setActiveIndex(-1)
-    scanLookup.mutate({ code, signal: controller.signal })
+    const owned = collection
+      ? findDuplicates(collection, { title: "", barcode: code }).map(
+          (match) => match.film
+        )
+      : []
+    if (owned.length > 0) {
+      setOwnedScan({ code, films: owned })
+      return
+    }
+    lookUpScan(code)
   }
 
   const isUrl = looksLikeUrl(value)
@@ -324,7 +361,10 @@ export function BlurayImportBox({
           )}
           <Input
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={(e) => {
+              setValue(e.target.value)
+              setOwnedScan(null)
+            }}
             onFocus={() => options.length > 0 && setOpen(true)}
             onKeyDown={onInputKeyDown}
             placeholder="Search Blu-ray.com, or paste a link (Blu-ray.com, CEX, HMV, Arrow…)"
@@ -367,6 +407,46 @@ export function BlurayImportBox({
           )}
           {scanStage}
         </p>
+      )}
+
+      {ownedScan && (
+        <div
+          role="status"
+          className="mt-2 flex flex-wrap items-center gap-3 rounded-lg border border-lb-orange/40 bg-lb-orange/10 p-3"
+        >
+          <SmallCover coverUrl={ownedScan.films[0].coverUrl} />
+          <p className="min-w-0 flex-1 text-sm">
+            <TriangleAlert className="mr-1.5 inline size-4 -translate-y-px text-lb-orange" />
+            Already in your collection:{" "}
+            <span className="font-medium">
+              {filmLabel(ownedScan.films[0])} · {ownedScan.films[0].format}
+            </span>
+            {ownedScan.films.length > 1 &&
+              ` (and ${ownedScan.films.length - 1} more cop${ownedScan.films.length === 2 ? "y" : "ies"})`}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              nativeButton={false}
+              size="sm"
+              variant="secondary"
+              render={
+                <Link
+                  to="/films/$filmId"
+                  params={{ filmId: ownedScan.films[0].id }}
+                />
+              }
+            >
+              Open
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => lookUpScan(ownedScan.code)}
+            >
+              Look it up anyway
+            </Button>
+          </div>
+        </div>
       )}
 
       <BarcodeScanDialog

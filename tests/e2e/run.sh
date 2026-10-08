@@ -11,6 +11,7 @@ export BETTER_AUTH_SECRET="spine-e2e-auth-secret-at-least-32-characters"
 export BETTER_AUTH_URL="http://127.0.0.1:4173"
 export FIRECRAWL_API_KEY=""
 export TMDB_API_KEY=""
+export ANTHROPIC_API_KEY=""
 
 cleanup() {
   $compose down --volumes --remove-orphans >/dev/null 2>&1 || true

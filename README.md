@@ -18,9 +18,12 @@
 - 📊 Stats: total discs, titles, unique directors, watched %, titles by decade, oldest/newest, longest/shortest runtime, top directors, resolution, publisher × package type, region, media type
 - 👁️ Watched tracking auto-synced from your Letterboxd RSS feed (first-time watches only; rewatches ignored) with a manual per-title override
 - 🎯 Wishlist with retailer URL scraping (Firecrawl) — HMV, Zavvi, Amazon, Arrow, Criterion, Indicator, Eureka, Second Sight, 88 Films, BFI, Terracotta, Munday Monday, Vinegar Syndrome, Imprint, Kino Lorber, Shout Factory, Blu-ray.com
+- 🧱 Shelves — a digital twin of your physical wall: rule-based shelves, standing upright or stacked flat, with capacity, hand-arranged order, and new-since-arranged markers
 - 🔮 The Oracle — random picker with unwatched/format filters and a "how much time do I have" runtime limit
 - 🖼️ Cover art and barcode lookup via Blu-ray.com quicksearch
-- 📷 Camera barcode scanning (UPC/EAN) to add discs
+- 📷 Camera barcode scanning (UPC/EAN) to add discs, with a warning when the disc (or title) is already catalogued
+- 🖼️ Scan your own front covers with the camera — flattened and cropped to the real DVD or Blu-ray/4K cover proportions, stored on your server
+- 🔎 Shelf check — photograph a shelf of spines and see which discs aren't catalogued yet, or check a shelf's order and get told exactly which discs to move where (requires `ANTHROPIC_API_KEY`)
 - ⚡ Add by search or link — autocomplete against Blu-ray.com or paste a product URL; imports title, year, director, format, audio, HDR, region, publisher, spine #, runtime, disc count, and cover in one go
 - 🎭 TMDB cast enrichment — cast fetched automatically on add (movies and TV), shown on each film page, with a "Top actors" leaderboard in Stats (requires `TMDB_API_KEY`)
 - 👤 Person pages — click any actor or director anywhere to see everything of theirs in your collection, directing and acting credits on one page
@@ -88,8 +91,9 @@ docker compose up --build
 That's it — Postgres 18 starts with the RLS role, the schema is pushed and
 policies applied on boot, and the app serves at http://localhost:3000.
 Optional integrations are read from a `.env` file next to the compose file
-(`FIRECRAWL_API_KEY`, `TMDB_API_KEY`); set `BETTER_AUTH_SECRET` for anything
-beyond local use. Data persists in the `db-data` volume.
+(`FIRECRAWL_API_KEY`, `TMDB_API_KEY`, `ANTHROPIC_API_KEY`); set
+`BETTER_AUTH_SECRET` for anything beyond local use. Data persists in the
+`db-data` volume.
 
 Hosting on a domain? Set two more variables in `.env`:
 

@@ -1,6 +1,6 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { createFileRoute, useNavigate } from "@tanstack/react-router"
-import { Loader2 } from "lucide-react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router"
+import { Loader2, ScanSearch } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { z } from "zod"
@@ -11,11 +11,14 @@ import {
   valuesToInput,
 } from "@/components/film-form"
 import type { FilmFormValues } from "@/components/film-form"
+import { Button } from "@/components/ui/button"
+import { filmFormatSchema } from "@/lib/film-formats"
 import {
   blurayToValues,
   cexToValues,
   withScannedBarcode,
 } from "@/lib/import-mappers"
+import { filmsQuery } from "@/lib/queries"
 import { importBlurayUrlFn } from "@/server/bluray"
 import { importCexFn } from "@/server/cex"
 import { createFilmFn } from "@/server/films"
@@ -23,6 +26,7 @@ import { createFilmFn } from "@/server/films"
 const searchSchema = z.object({
   title: z.string().optional(),
   year: z.string().optional(),
+  format: filmFormatSchema.optional().catch(undefined),
   coverUrl: z.string().optional(),
   barcode: z.string().optional(),
   /** Blu-ray.com product URL to auto-import on load (from the scanner). */
@@ -31,6 +35,12 @@ const searchSchema = z.object({
   cexId: z.string().optional(),
   /** Open the camera scanner straight away (header Scan shortcut). */
   scan: z.string().optional(),
+  /** Seed the Blu-ray.com search box, so its autocomplete runs (Shelf check). */
+  importQuery: z.string().optional(),
+  /** Go back to the Shelf check after adding, to carry on down its list. */
+  from: z.enum(["shelf-check"]).optional().catch(undefined),
+  /** …to the order check of this shelf. */
+  checkShelf: z.string().optional(),
 })
 
 export const Route = createFileRoute("/_app/add")({
@@ -42,6 +52,7 @@ function AddFilmPage() {
   const prefill = Route.useSearch()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { data: films } = useQuery(filmsQuery)
   const [imported, setImported] = useState<FilmFormValues | null>(null)
   const [formKey, setFormKey] = useState(0)
 
@@ -50,6 +61,14 @@ function AddFilmPage() {
     onSuccess: async (film) => {
       await queryClient.invalidateQueries({ queryKey: ["films"] })
       toast.success(`“${film.title}” added to your collection`)
+      if (prefill.from === "shelf-check") {
+        await navigate({
+          to: "/shelf-check",
+          search: { shelf: prefill.checkShelf },
+          replace: true,
+        })
+        return
+      }
       await navigate({ to: "/films/$filmId", params: { filmId: film.id } })
     },
     onError: () => toast.error("Could not add the film — check the fields"),
@@ -100,16 +119,28 @@ function AddFilmPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Add a film</h1>
-        <p className="text-sm text-muted-foreground">
-          Search Blu-ray.com, paste a product link, or scan the disc's barcode
-          to import the full details — or fill the form in by hand.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Add a film</h1>
+          <p className="text-sm text-muted-foreground">
+            Search Blu-ray.com, paste a product link, or scan the disc's barcode
+            to import the full details — or fill the form in by hand.
+          </p>
+        </div>
+        <Button
+          nativeButton={false}
+          variant="outline"
+          className="gap-2"
+          render={<Link to="/shelf-check" />}
+        >
+          <ScanSearch className="size-4" /> Shelf check
+        </Button>
       </div>
       <BlurayImportBox
         onImport={applyImport}
         autoOpenScanner={prefill.scan != null}
+        initialQuery={prefill.importQuery}
+        collection={films}
       />
       {(autoImport.isPending || cexImport.isPending) && (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -125,11 +156,14 @@ function AddFilmPage() {
             ...emptyFilmValues,
             title: prefill.title ?? "",
             year: prefill.year ?? "",
+            format: prefill.format ?? emptyFilmValues.format,
             coverUrl: prefill.coverUrl ?? "",
             barcode: prefill.barcode ?? "",
           }
         }
         submitLabel="Add to collection"
+        sameDiscSubmitLabel="Add another copy"
+        collection={films}
         pending={create.isPending}
         onSubmit={(values) => create.mutate({ data: valuesToInput(values) })}
       />

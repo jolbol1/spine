@@ -4,7 +4,7 @@ import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
 import { films } from "@/db/schema"
 import { filmFixture } from "@/test/film-fixture"
-import type { Page } from "@playwright/test"
+import type { Locator, Page } from "@playwright/test"
 import type { Film } from "@/db/schema"
 
 export interface TestAccount {
@@ -91,4 +91,19 @@ export async function seedFilm(
   } finally {
     await sql.end()
   }
+}
+
+/**
+ * Wait until React has hydrated this element. A click before hydration
+ * still follows a server-rendered link, but an event that only a React
+ * handler acts on — a file input's change, say — would be lost.
+ */
+export async function waitForHydration(locator: Locator) {
+  await expect
+    .poll(() =>
+      locator.evaluate((el) =>
+        Object.keys(el).some((key) => key.startsWith("__reactProps"))
+      )
+    )
+    .toBe(true)
 }
