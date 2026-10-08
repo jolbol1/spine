@@ -78,6 +78,29 @@ on the web, and your collection, wishlist, shelves, and saved views follow
 you. Open `ios/Spine.xcodeproj` in Xcode and run it, then enter your server's
 address.
 
+<table>
+  <tr>
+    <td width="33%"><img src="docs/assets/screenshots/ios-collection.jpg" alt="Collection grid in the Spine iOS app" /></td>
+    <td width="33%"><img src="docs/assets/screenshots/ios-film.jpg" alt="Paris, Texas title details in the Spine iOS app" /></td>
+    <td width="33%"><img src="docs/assets/screenshots/ios-shelves.jpg" alt="Shelves in the Spine iOS app, with a stacked DVD pile above the Criterion shelf" /></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Collection</strong></td>
+    <td align="center"><strong>Title details</strong></td>
+    <td align="center"><strong>Shelves, upright or stacked</strong></td>
+  </tr>
+  <tr>
+    <td width="33%"><img src="docs/assets/screenshots/ios-add-duplicate.jpg" alt="Adding Heat in the Spine iOS app, warning that it's already catalogued on 4K UHD" /></td>
+    <td width="33%"><img src="docs/assets/screenshots/ios-oracle.jpg" alt="The Oracle choosing Videodrome in the Spine iOS app" /></td>
+    <td width="33%"><img src="docs/assets/screenshots/ios-stats.jpg" alt="Collection stats in the Spine iOS app" /></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Duplicate warning on add</strong></td>
+    <td align="center"><strong>The Oracle</strong></td>
+    <td align="center"><strong>Stats</strong></td>
+  </tr>
+</table>
+
 ## Stack
 
 TanStack Start · TanStack Query · shadcn/ui (Base UI, base-lyra) · Tailwind v4 · Drizzle ORM · Postgres · better-auth · Bun · SwiftUI (iOS)
