@@ -11,6 +11,7 @@ import {
   LayoutGrid,
   List,
   Loader2,
+  Pencil,
   SlidersHorizontal,
   Star,
   Trash2,
@@ -725,6 +726,34 @@ function CollectionPage() {
   const deleteView = (name: string) =>
     saveViews.mutate(savedViews.filter((v) => v.name !== name))
 
+  // Rename dialog: which view it renames, and the name being typed.
+  const [rename, setRename] = useState<{ from: string; to: string } | null>(
+    null
+  )
+
+  const openRename = (name: string) => setRename({ from: name, to: name })
+
+  const renameView = () => {
+    if (!rename) return
+    const { from } = rename
+    const to = rename.to.trim()
+    if (!to) return
+    if (to === from) {
+      setRename(null)
+      return
+    }
+    const next = savedViews
+      // Renaming onto an existing name overwrites that view.
+      .filter((v) => v.name !== to || v.name === from)
+      .map((v) => (v.name === from ? { ...v, name: to } : v))
+    saveViews.mutate(next, {
+      onSuccess: () => {
+        setRename(null)
+        toast.success(`View “${from}” renamed to “${to}”`)
+      },
+    })
+  }
+
   const toggleDefaultView = (name: string) =>
     saveViews.mutate(
       savedViews.map((v) => ({
@@ -1026,26 +1055,28 @@ function CollectionPage() {
               {activeView ? activeView.name : "Views"}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-56">
+              {/* Sibling menu items in one visual row, so every control
+                  sits in the menu's arrow-key order. */}
               {savedViews.map((saved) => (
-                <DropdownMenuItem
-                  key={saved.name}
-                  className="gap-2"
-                  onClick={() => applyView(saved)}
-                >
-                  <span className="min-w-0 flex-1 truncate">{saved.name}</span>
-                  <button
-                    type="button"
+                <div key={saved.name} className="flex items-stretch">
+                  <DropdownMenuItem
+                    className="min-w-0 flex-1"
+                    onClick={() => applyView(saved)}
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      {saved.name}
+                    </span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    closeOnClick={false}
                     aria-label={
                       saved.isDefault
                         ? `Unset ${saved.name} as default view`
                         : `Set ${saved.name} as default view`
                     }
                     title={saved.isDefault ? "Default view" : "Make default"}
-                    className="shrink-0 text-muted-foreground hover:text-foreground"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      toggleDefaultView(saved.name)
-                    }}
+                    className="shrink-0 px-1.5 text-muted-foreground"
+                    onClick={() => toggleDefaultView(saved.name)}
                   >
                     <Star
                       className={cn(
@@ -1053,20 +1084,26 @@ function CollectionPage() {
                         saved.isDefault && "fill-lb-orange text-lb-orange"
                       )}
                     />
-                  </button>
-                  <button
-                    type="button"
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    aria-label={`Rename view ${saved.name}`}
+                    title="Rename view"
+                    className="shrink-0 px-1.5 text-muted-foreground"
+                    onClick={() => openRename(saved.name)}
+                  >
+                    <Pencil className="size-3.5" />
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    closeOnClick={false}
                     aria-label={`Delete view ${saved.name}`}
                     title="Delete view"
-                    className="shrink-0 text-muted-foreground hover:text-destructive"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      deleteView(saved.name)
-                    }}
+                    className="shrink-0 px-1.5 text-muted-foreground"
+                    onClick={() => deleteView(saved.name)}
                   >
                     <Trash2 className="size-3.5" />
-                  </button>
-                </DropdownMenuItem>
+                  </DropdownMenuItem>
+                </div>
               ))}
               {savedViews.length > 0 && <DropdownMenuSeparator />}
               <DropdownMenuItem
@@ -1135,6 +1172,62 @@ function CollectionPage() {
                   <Loader2 className="size-4 animate-spin" />
                 )}
                 Save view
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename-view dialog */}
+      <Dialog
+        open={rename != null}
+        onOpenChange={(open) => {
+          if (!open) setRename(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rename view</DialogTitle>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault()
+              renameView()
+            }}
+          >
+            <Field>
+              <FieldLabel htmlFor="rename-view-name">Name</FieldLabel>
+              <Input
+                id="rename-view-name"
+                autoFocus
+                value={rename?.to ?? ""}
+                onChange={(e) =>
+                  setRename((prev) =>
+                    prev ? { ...prev, to: e.target.value } : prev
+                  )
+                }
+              />
+            </Field>
+            <p className="text-xs text-muted-foreground">
+              Reusing another view's name overwrites that view.
+            </p>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRename(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={!rename?.to.trim() || saveViews.isPending}
+              >
+                {saveViews.isPending && (
+                  <Loader2 className="size-4 animate-spin" />
+                )}
+                Rename view
               </Button>
             </DialogFooter>
           </form>

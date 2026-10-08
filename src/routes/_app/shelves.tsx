@@ -26,6 +26,14 @@ import { PosterFrame } from "@/components/film-card"
 import { ShelfBuilderDialog } from "@/components/shelf-builder"
 import { Button } from "@/components/ui/button"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -276,6 +284,9 @@ function ShelvesPage() {
   const [manualShelfId, setManualShelfId] = useState<string | null>(null)
   const [showGhosts, setShowGhosts] = useState(false)
   const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [pendingTemplate, setPendingTemplate] = useState<ShelfTemplate | null>(
+    null
+  )
 
   const assignment = useMemo(
     () => assignFilms(films, shelves),
@@ -345,15 +356,21 @@ function ShelvesPage() {
       ids.length === 1 ? "Shelf marked arranged" : "All shelves marked arranged"
     )
   }
-  const applyTemplate = (template: ShelfTemplate) => {
-    if (
-      shelves.length > 0 &&
-      !window.confirm("Replace your current shelves with this template?")
-    ) {
-      return
-    }
+  const runTemplate = (template: ShelfTemplate) => {
     update(buildTemplateShelves(template, films))
     toast.success("Shelves created — tweak the rules to taste")
+  }
+  const applyTemplate = (template: ShelfTemplate) => {
+    // Replacing an existing layout is destructive — confirm first.
+    if (shelves.length > 0) {
+      setPendingTemplate(template)
+      return
+    }
+    runTemplate(template)
+  }
+  const confirmTemplate = () => {
+    if (pendingTemplate) runTemplate(pendingTemplate)
+    setPendingTemplate(null)
   }
 
   // ---- Film-level actions ---------------------------------------------
@@ -553,10 +570,17 @@ function ShelvesPage() {
               <span
                 draggable
                 role="button"
-                aria-label={`Drag to reorder ${shelf.name}`}
+                tabIndex={0}
+                aria-label={`Reorder ${shelf.name} — arrow keys move it`}
+                title="Drag, or focus and use the arrow keys, to reorder"
                 onDragStart={() => setDraggingId(shelf.id)}
                 onDragEnd={() => setDraggingId(null)}
-                className="cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing"
+                onKeyDown={(e) => {
+                  if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return
+                  e.preventDefault()
+                  moveShelf(shelf.id, e.key === "ArrowUp" ? -1 : 1)
+                }}
+                className="cursor-grab rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
               >
                 <GripVertical className="size-4" />
               </span>
@@ -775,6 +799,32 @@ function ShelvesPage() {
         editing={editing}
         onSave={onSaveShelf}
       />
+
+      {/* Template confirm */}
+      <Dialog
+        open={pendingTemplate != null}
+        onOpenChange={(open) => {
+          if (!open) setPendingTemplate(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Replace your shelves?</DialogTitle>
+            <DialogDescription>
+              This replaces your current shelves with the template's — your
+              rules, pins, and hand-arranged orders go with them.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingTemplate(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmTemplate}>
+              Replace shelves
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
