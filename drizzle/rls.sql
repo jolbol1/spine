@@ -5,6 +5,7 @@
 ALTER TABLE films ENABLE ROW LEVEL SECURITY;
 ALTER TABLE wishlist_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE film_covers ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS films_owner ON films;
 CREATE POLICY films_owner ON films
@@ -20,6 +21,18 @@ CREATE POLICY wishlist_owner ON wishlist_items
 
 DROP POLICY IF EXISTS user_settings_owner ON user_settings;
 CREATE POLICY user_settings_owner ON user_settings
+  FOR ALL
+  USING (user_id = current_setting('app.user_id', true))
+  WITH CHECK (user_id = current_setting('app.user_id', true));
+
+-- Covers are served publicly by their unguessable id; only the owner writes.
+DROP POLICY IF EXISTS film_covers_read ON film_covers;
+CREATE POLICY film_covers_read ON film_covers
+  FOR SELECT
+  USING (true);
+
+DROP POLICY IF EXISTS film_covers_owner ON film_covers;
+CREATE POLICY film_covers_owner ON film_covers
   FOR ALL
   USING (user_id = current_setting('app.user_id', true))
   WITH CHECK (user_id = current_setting('app.user_id', true));

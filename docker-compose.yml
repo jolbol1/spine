@@ -33,6 +33,7 @@ services:
       # Optional integrations — picked up from your host .env if present
       FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
       TMDB_API_KEY: ${TMDB_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy

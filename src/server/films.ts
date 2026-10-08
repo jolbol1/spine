@@ -3,7 +3,9 @@ import { asc, eq } from "drizzle-orm"
 import { z } from "zod"
 import { films, withUser } from "@/db"
 import { filmFormatSchema } from "@/lib/film-formats"
+import { CUSTOM_COVER_PATH } from "@/lib/covers"
 import { toSortTitle } from "@/lib/film-helpers"
+import { releaseCustomCover } from "@/server/cover-store"
 import { isCriterionLabel, lookupSpine } from "@/server/criterion-data"
 import { authMiddleware } from "@/server/middleware"
 import { fetchRtScores } from "@/server/rottentomatoes"
@@ -24,7 +26,14 @@ const filmInput = z.object({
   runtimeMinutes: z.number().int().min(1).max(10000).nullish(),
   discCount: z.number().int().min(1).max(200).default(1),
   barcode: z.string().trim().max(100).nullish(),
-  coverUrl: z.string().trim().url().max(2048).nullish().or(z.literal("")),
+  // A remote image, or a cover photographed into this server's store.
+  coverUrl: z
+    .union([
+      z.string().trim().url().max(2048),
+      z.string().trim().regex(CUSTOM_COVER_PATH),
+      z.literal(""),
+    ])
+    .nullish(),
   notes: z.string().trim().max(5000).nullish(),
   pricePaid: z.number().min(0).max(99_999_999).nullish(),
   /**
@@ -175,13 +184,26 @@ export const updateFilmFn = createServerFn({ method: "POST" })
       }
     }
 
-    const rows = await withUser(context.userId, (tx) =>
-      tx
+    const rows = await withUser(context.userId, async (tx) => {
+      const before = (
+        await tx
+          .select({ coverUrl: films.coverUrl })
+          .from(films)
+          .where(eq(films.id, id))
+          .limit(1)
+      ).at(0)
+      const updated = await tx
         .update(films)
         .set({ ...toRow(rest), ...tmdbPatch, updatedAt: new Date() })
         .where(eq(films.id, id))
         .returning()
-    )
+      const after = updated.at(0)
+      // A replaced photographed cover is no longer needed.
+      if (before && after && before.coverUrl !== after.coverUrl) {
+        await releaseCustomCover(tx, before.coverUrl)
+      }
+      return updated
+    })
     return rows.at(0) ?? null
   })
 
@@ -189,9 +211,13 @@ export const deleteFilmFn = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(z.object({ id: z.string().uuid() }))
   .handler(async ({ context, data }) => {
-    await withUser(context.userId, (tx) =>
-      tx.delete(films).where(eq(films.id, data.id))
-    )
+    await withUser(context.userId, async (tx) => {
+      const deleted = await tx
+        .delete(films)
+        .where(eq(films.id, data.id))
+        .returning({ coverUrl: films.coverUrl })
+      await releaseCustomCover(tx, deleted.at(0)?.coverUrl)
+    })
     return { ok: true }
   })
 

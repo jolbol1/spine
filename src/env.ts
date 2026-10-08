@@ -29,6 +29,8 @@ export interface Env {
   FIRECRAWL_API_KEY: string | undefined
   /** Optional: TMDB v3 API key (or v4 read token) for cast enrichment. */
   TMDB_API_KEY: string | undefined
+  /** Optional: Anthropic API key for reading disc spines in shelf photos. */
+  ANTHROPIC_API_KEY: string | undefined
 }
 
 /**
@@ -49,6 +51,7 @@ export function resolveEnv(
     BETTER_AUTH_URL: source.BETTER_AUTH_URL ?? DEV_DEFAULTS.BETTER_AUTH_URL,
     FIRECRAWL_API_KEY: source.FIRECRAWL_API_KEY,
     TMDB_API_KEY: source.TMDB_API_KEY,
+    ANTHROPIC_API_KEY: source.ANTHROPIC_API_KEY,
   }
 
   if (nodeEnv === "production") {

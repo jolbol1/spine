@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm"
 import {
   boolean,
+  customType,
   index,
   integer,
   jsonb,
@@ -286,6 +287,38 @@ export const userSettings = pgTable(
   () => [ownerPolicy("user_settings_owner")]
 ).enableRLS()
 
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "bytea",
+})
+
+/**
+ * Front covers the user photographed, served at /api/covers/<id> and set as
+ * a film's cover_url. Anyone can read a row by its id — an unguessable UUID,
+ * so the URL works in an <img> or the app's image loader without a session —
+ * but only its owner can write or delete it.
+ */
+export const filmCovers = pgTable(
+  "film_covers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    contentType: text("content_type").notNull(),
+    data: bytea("data").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("film_covers_user_idx").on(t.userId),
+    pgPolicy("film_covers_read", {
+      as: "permissive",
+      for: "select",
+      using: sql`true`,
+    }),
+    ownerPolicy("film_covers_owner"),
+  ]
+).enableRLS()
+
 /**
  * Global reference data scraped from criterion.com (via Firecrawl) —
  * shared across users, so no RLS.
@@ -309,3 +342,4 @@ export type NewFilm = typeof films.$inferInsert
 export type WishlistItem = typeof wishlistItems.$inferSelect
 export type NewWishlistItem = typeof wishlistItems.$inferInsert
 export type UserSettings = typeof userSettings.$inferSelect
+export type FilmCover = typeof filmCovers.$inferSelect

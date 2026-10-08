@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { lookupSpineFn, syncCriterionSpinesFn } from "@/server/criterion"
 import { importCexFn } from "@/server/cex"
+import { uploadCoverFn } from "@/server/covers"
 import { importBlurayUrlFn, searchBlurayFn } from "@/server/bluray"
 import {
   createFilmFn,
@@ -16,6 +17,7 @@ import {
   syncRottenTomatoesFn,
 } from "@/server/rottentomatoes"
 import { getSessionFn } from "@/server/session"
+import { scanShelfPhotoFn } from "@/server/shelf-scan"
 import {
   getSettingsFn,
   saveSettingsFn,
@@ -77,6 +79,8 @@ const API_FUNCTIONS = new Map<string, ApiFunction>(
     importCex: importCexFn,
     searchWebBarcode: searchWebBarcodeFn,
     lookupSpine: lookupSpineFn,
+    scanShelfPhoto: scanShelfPhotoFn,
+    uploadCover: uploadCoverFn,
 
     rematchTmdb: rematchTmdbFn,
     refreshRtScores: refreshRtScoresFn,
